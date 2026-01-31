@@ -1,0 +1,145 @@
+{
+  "identity": {
+    "name": "Thrryv",
+    "mission": "To build a transparent, evidence-based social platform for truth-seekers.",
+    "archetype": "Swiss & High-Contrast (Authority, Clarity, Truth)",
+    "tone": "Objective, Transparent, Academic yet Accessible"
+  },
+  "design_principles": [
+    "Content is King: The claim and evidence are the heroes. UI recedes.",
+    "Radical Transparency: Every score, label, and metric must be explainable on hover/click.",
+    "Swiss Precision: Use grids, asymmetry, and strong typography. Avoid decoration.",
+    "Data as Art: Credibility scores should be beautiful, readable visualizations, not just numbers."
+  ],
+  "typography": {
+    "headings": {
+      "font_family": "Playfair Display, serif",
+      "usage": "Headings, Claim Titles, Hero Text",
+      "weights": ["400", "600", "700"],
+      "tracking": "tracking-tight"
+    },
+    "body": {
+      "font_family": "Public Sans, sans-serif",
+      "usage": "Body text, Evidence, UI elements",
+      "weights": ["400", "500", "600"],
+      "tracking": "tracking-normal"
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Data points, Hash IDs, Timestamps",
+      "weights": ["400"]
+    }
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "background": "#FFFFFF",
+      "foreground": "#0F172A",
+      "primary": "#0F172A",
+      "secondary": "#F1F5F9",
+      "muted": "#64748B",
+      "border": "#E2E8F0"
+    },
+    "truth_labels": {
+      "true": {
+        "bg": "#ECFDF5",
+        "text": "#065F46",
+        "border": "#6EE7B7",
+        "label": "True"
+      },
+      "likely_true": {
+        "bg": "#F0FDF4",
+        "text": "#166534",
+        "border": "#86EFAC",
+        "label": "Likely True"
+      },
+      "mixed": {
+        "bg": "#FFFBEB",
+        "text": "#92400E",
+        "border": "#FCD34D",
+        "label": "Mixed Evidence"
+      },
+      "uncertain": {
+        "bg": "#F3F4F6",
+        "text": "#374151",
+        "border": "#D1D5DB",
+        "label": "Uncertain"
+      },
+      "likely_false": {
+        "bg": "#FEF2F2",
+        "text": "#991B1B",
+        "border": "#FCA5A5",
+        "label": "Likely False"
+      },
+      "false": {
+        "bg": "#450A0A",
+        "text": "#FEF2F2",
+        "border": "#991B1B",
+        "label": "False"
+      }
+    },
+    "special_labels": {
+      "ai_generated": {
+        "bg": "#F3E8FF",
+        "text": "#6B21A8",
+        "border": "#D8B4FE",
+        "icon": "Sparkles"
+      }
+    }
+  },
+  "layout": {
+    "spacing_scale": "Generous (2x standard). Use p-6, p-8, p-12 for containers.",
+    "container_style": "Bento Grid / Masonry for Feed. 3-Column Grid for Evidence.",
+    "border_radius": "rounded-none or rounded-sm (max 4px). Sharp edges convey precision.",
+    "shadows": "Minimal. Prefer borders (1px solid) over shadows to mimic paper documents."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm px-6 py-3 font-medium tracking-wide",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-sm px-6 py-3",
+      "ghost": "hover:bg-accent hover:text-accent-foreground rounded-sm"
+    },
+    "cards": {
+      "claim_card": "border border-border bg-card p-6 hover:border-primary/50 transition-colors duration-200",
+      "evidence_card": "bg-slate-50 border-l-4 p-4 text-sm"
+    },
+    "visualizations": {
+      "credibility_meter": "Use Recharts RadialBarChart or PieChart. Donut style. Color coded by score.",
+      "reputation_radar": "Use Recharts RadarChart for user profile (Accuracy, Volume, Citations)."
+    }
+  },
+  "assets": {
+    "images": {
+      "user_avatars": [
+        "https://images.unsplash.com/photo-1769636929388-99eff95d3bf1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2OTg4NTAzMHww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1576558656222-ba66febe3dec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2OTg4NTAzMHww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1655249481446-25d575f1c054?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2OTg4NTAzMHww&ixlib=rb-4.1.0&q=85"
+      ],
+      "evidence_thumbnails": [
+        "https://images.unsplash.com/photo-1763568258586-da55ea292766?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxzY2llbnRpZmljJTIwZGF0YSUyMGNoYXJ0JTIwZ3JhcGh8ZW58MHx8fHwxNzY5ODg1MDMyfDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1762279389083-abf71f22d338?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHxzY2llbnRpZmljJTIwZGF0YSUyMGNoYXJ0JTIwZ3JhcGh8ZW58MHx8fHwxNzY5ODg1MDMyfDA&ixlib=rb-4.1.0&q=85"
+      ],
+      "claim_context": [
+        "https://images.unsplash.com/photo-1554446422-d05db23719d2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwxfHxwcmVzcyUyMGNvbmZlcmVuY2UlMjBtaWNyb3Bob25lfGVufDB8fHx8MTc2OTg4NTAzNnww&ixlib=rb-4.1.0&q=85"
+      ]
+    },
+    "icons": "Use Lucide React. Prefer thin strokes (stroke-width={1.5}) for elegance."
+  },
+  "instructions_to_main_agent": [
+    "1. SETUP: Install 'recharts' if not present. Ensure 'lucide-react' is available.",
+    "2. FONTS: Import 'Playfair Display' and 'Public Sans' from Google Fonts in index.css.",
+    "3. COMPONENTS: Create a 'TruthBadge' component that takes a status prop and applies the colors defined in 'truth_labels'.",
+    "4. COMPONENTS: Create a 'CredibilityScore' component using Recharts to visualize the score (0-100).",
+    "5. LAYOUT: The Claim Detail page must use a 3-column layout for evidence: Support (Left), Refute (Right), Context (Bottom/Center).",
+    "6. AI LABELING: Automatically check for 'is_ai_generated' flag on media and apply the 'special_labels.ai_generated' style.",
+    "7. REPUTATION: On User Profile, show a Radar Chart of their contribution stats.",
+    "8. FEED: Use a masonry or grid layout for the feed. Do not use a simple vertical list. Make it look like a newspaper front page."
+  ],
+  "universal_guidelines": [
+    "Do not use gradients for backgrounds. Keep it flat and clean.",
+    "Use 'border-collapse' style layouts for data tables.",
+    "Ensure high contrast for text. Accessibility is paramount for a truth platform.",
+    "Micro-interactions: Add subtle hover states to evidence cards (lift up 1px, darken border).",
+    "No 'Like' buttons. Use 'Upvote/Downvote' or 'Helpful/Not Helpful' with specific icons (e.g., Check/X or Arrow Up/Down)."
+  ]
+}
