@@ -114,8 +114,8 @@ const ClaimDetail = ({ user }) => {
 
     const token = localStorage.getItem('token');
     axios.post(
-      `${API}/annotations/${annotationId}/vote`,
-      { helpful },
+      `${API}/annotations/${annotationId}/vote?helpful=${helpful}`,
+      {},
       { headers: { Authorization: `Bearer ${token}` } }
     )
       .then(() => {
