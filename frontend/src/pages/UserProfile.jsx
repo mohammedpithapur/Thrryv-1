@@ -13,19 +13,17 @@ const UserProfile = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadUser = async () => {
+      try {
+        const response = await axios.get(`${API}/users/${userId}`);
+        setUser(response.data);
+        setLoading(false);
+      } catch (err) {
+        setLoading(false);
+      }
+    };
+    loadUser();
   }, [userId]);
-
-  const fetchUser = async () => {
-    try {
-      const response = await axios.get(`${API}/users/${userId}`);
-      setUser(response.data);
-      setLoading(false);
-    } catch (err) {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
