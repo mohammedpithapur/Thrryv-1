@@ -11,6 +11,7 @@ import CreateClaim from "./pages/CreateClaim";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import UserProfile from "./pages/UserProfile";
+import ProfileSettings from "./pages/ProfileSettings";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
