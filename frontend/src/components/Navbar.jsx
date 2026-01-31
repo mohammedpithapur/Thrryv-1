@@ -30,8 +30,15 @@ const Navbar = ({ user, onLogout }) => {
                   onClick={() => navigate(`/profile/${user.id}`)}
                   className="flex items-center gap-2 px-4 py-2 hover:bg-secondary rounded-sm text-sm transition-colors"
                 >
-                  <User size={18} strokeWidth={1.5} />
+                  <UserAvatar user={user} size="sm" />
                   {user.username}
+                </button>
+                <button
+                  data-testid="settings-btn"
+                  onClick={() => navigate('/settings')}
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-secondary rounded-sm text-sm transition-colors"
+                >
+                  <Settings size={18} strokeWidth={1.5} />
                 </button>
                 <button
                   data-testid="logout-btn"
