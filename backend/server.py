@@ -738,9 +738,79 @@ async def vote_annotation(
     
     return {"message": "Vote recorded successfully"}
 
-# User profile
-@api_router.get("/users/{user_id}")
-async def get_user_profile(user_id: str):
+# Profile picture upload
+@api_router.post("/users/profile-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_user)
+):
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    
+    file_id = str(uuid.uuid4())
+    file_ext = Path(file.filename).suffix
+    file_path = UPLOAD_DIR / f"profile_{file_id}{file_ext}"
+    
+    # Save file
+    contents = await file.read()
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    # Update user's profile picture
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$set": {"profile_picture": str(file_path)}}
+    )
+    
+    return {"profile_picture": file_id, "message": "Profile picture updated"}
+
+# Serve profile pictures
+@api_router.get("/users/profile-picture/{user_id}")
+async def get_profile_picture(user_id: str):
+    from fastapi.responses import FileResponse
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user or not user.get('profile_picture'):
+        raise HTTPException(status_code=404, detail="Profile picture not found")
+    
+    file_path = user['profile_picture']
+    if not Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(file_path)
+
+# Update user settings
+@api_router.patch("/users/settings")
+async def update_user_settings(
+    username: Optional[str] = None,
+    current_password: Optional[str] = None,
+    new_password: Optional[str] = None,
+    current_user = Depends(get_current_user)
+):
+    updates = {}
+    
+    # Update username
+    if username and username != current_user['username']:
+        # Check if username is already taken
+        existing = await db.users.find_one({"username": username, "id": {"$ne": current_user['id']}}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already taken")
+        updates["username"] = username
+    
+    # Update password
+    if current_password and new_password:
+        if not verify_password(current_password, current_user['password']):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        updates["password"] = hash_password(new_password)
+    
+    if updates:
+        await db.users.update_one(
+            {"id": current_user['id']},
+            {"$set": updates}
+        )
+        return {"message": "Settings updated successfully"}
+    
+    return {"message": "No changes made"}
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
