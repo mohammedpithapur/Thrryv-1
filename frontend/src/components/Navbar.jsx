@@ -9,7 +9,7 @@ const Navbar = ({ user, onLogout }) => {
     <nav data-testid="navbar" className="border-b border-border bg-white sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          <Link to="/" className="playfair text-2xl font-bold tracking-tight">
+          <Link to="/feed" className="playfair text-2xl font-bold tracking-tight">
             Thrryv
           </Link>
 
