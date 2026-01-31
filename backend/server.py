@@ -582,11 +582,19 @@ async def vote_annotation(
             {"$inc": {"helpful_votes": 1}, "$push": {"voted_by": current_user['id']}}
         )
         
-        # Update annotation author's reputation
+        # Update annotation author's reputation with time-based bonus
         author_id = annotation['author_id']
+        annotation_created = datetime.fromisoformat(annotation['created_at'])
+        days_old = (datetime.now(timezone.utc) - annotation_created).days
+        
+        # Aging well bonus: older annotations that get helpful votes get more reputation
+        # 1 point base + up to 2 bonus points for aging well (maxes at 30 days)
+        time_bonus = min(2.0, days_old / 15.0)
+        reputation_gain = 1.0 + time_bonus
+        
         await db.users.update_one(
             {"id": author_id},
-            {"$inc": {"reputation_score": 1.0, "contribution_stats.helpful_votes_received": 1}}
+            {"$inc": {"reputation_score": reputation_gain, "contribution_stats.helpful_votes_received": 1}}
         )
     else:
         await db.annotations.update_one(
