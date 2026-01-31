@@ -66,24 +66,26 @@ function App() {
   }
 
   return (
-    <div className="App min-h-screen bg-background">
-      <BrowserRouter>
-        <Routes>
-          {/* Welcome page without navbar */}
-          <Route path="/" element={<Welcome />} />
-          
-          {/* Pages with navbar */}
-          <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><Feed /></>} />
-          <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ClaimDetail user={user} /></>} />
-          <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><CreateClaim user={user} /></>} />
-          <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><Login onLogin={handleLogin} /></>} />
-          <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><Register onLogin={handleLogin} /></>} />
-          <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><UserProfile /></>} />
-          <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ProfileSettings user={user} onUserUpdate={handleUserUpdate} /></>} />
-        </Routes>
-        <Toaster position="top-center" />
-      </BrowserRouter>
-    </div>
+    <ThemeProvider>
+      <div className="App min-h-screen bg-background">
+        <BrowserRouter>
+          <Routes>
+            {/* Welcome page without navbar */}
+            <Route path="/" element={<Welcome />} />
+            
+            {/* Pages with navbar */}
+            <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><Feed /></>} />
+            <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ClaimDetail user={user} /></>} />
+            <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><CreateClaim user={user} /></>} />
+            <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><Login onLogin={handleLogin} /></>} />
+            <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><Register onLogin={handleLogin} /></>} />
+            <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><UserProfile /></>} />
+            <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ProfileSettings user={user} onUserUpdate={handleUserUpdate} /></>} />
+          </Routes>
+          <Toaster position="top-center" />
+        </BrowserRouter>
+      </div>
+    </ThemeProvider>
   );
 }
 
