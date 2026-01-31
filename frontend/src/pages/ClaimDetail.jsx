@@ -195,14 +195,16 @@ const ClaimDetail = ({ user }) => {
           {supportAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No supporting evidence yet</p>
           ) : (
-            supportAnnotations.map(ann => (
-              <AnnotationCard
-                key={ann.id}
-                annotation={ann}
-                onVote={handleVote}
-                canVote={!!user}
-              />
-            ))
+            <div>
+              {supportAnnotations.map(ann => (
+                <AnnotationCard
+                  key={ann.id}
+                  annotation={ann}
+                  onVote={handleVote}
+                  canVote={!!user}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -211,14 +213,16 @@ const ClaimDetail = ({ user }) => {
           {contradictAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No contradictions yet</p>
           ) : (
-            contradictAnnotations.map(ann => (
-              <AnnotationCard
-                key={ann.id}
-                annotation={ann}
-                onVote={handleVote}
-                canVote={!!user}
-              />
-            ))
+            <div>
+              {contradictAnnotations.map(ann => (
+                <AnnotationCard
+                  key={ann.id}
+                  annotation={ann}
+                  onVote={handleVote}
+                  canVote={!!user}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -227,14 +231,16 @@ const ClaimDetail = ({ user }) => {
           {contextAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No context yet</p>
           ) : (
-            contextAnnotations.map(ann => (
-              <AnnotationCard
-                key={ann.id}
-                annotation={ann}
-                onVote={handleVote}
-                canVote={!!user}
-              />
-            ))
+            <div>
+              {contextAnnotations.map(ann => (
+                <AnnotationCard
+                  key={ann.id}
+                  annotation={ann}
+                  onVote={handleVote}
+                  canVote={!!user}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
