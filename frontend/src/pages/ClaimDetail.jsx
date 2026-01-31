@@ -12,6 +12,7 @@ const API = `${BACKEND_URL}/api`;
 
 const ClaimDetail = ({ user }) => {
   const params = useParams();
+  const navigate = useNavigate();
   const claimId = params.claimId;
   const [claim, setClaim] = useState(null);
   const [annotations, setAnnotations] = useState([]);
