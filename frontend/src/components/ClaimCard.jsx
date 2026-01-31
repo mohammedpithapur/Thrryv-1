@@ -1,11 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TruthBadge from './TruthBadge';
-import AiGeneratedBadge from './AiGeneratedBadge';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Video } from 'lucide-react';
 
 const ClaimCard = ({ claim }) => {
   const navigate = useNavigate();
+  const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+  
+  const firstMedia = claim.media && claim.media.length > 0 ? claim.media[0] : null;
+  const hasImage = firstMedia && firstMedia.file_type && firstMedia.file_type.startsWith('image/');
+  const hasVideo = firstMedia && firstMedia.file_type && firstMedia.file_type.startsWith('video/');
 
   return (
     <div
@@ -29,24 +33,24 @@ const ClaimCard = ({ claim }) => {
         <TruthBadge label={claim.truth_label} />
       </div>
       
-      {claim.media && claim.media.length > 0 && (
-        <div className="flex gap-2 mb-3">
-          {claim.media.slice(0, 3).map((media, idx) => (
-            <div key={idx} className="relative">
-              {media.file_type?.startsWith('image/') && (
-                <img
-                  src={`/api/media/${media.id}`}
-                  alt="Evidence"
-                  className="w-16 h-16 object-cover rounded-sm border border-border"
-                />
-              )}
-              {media.is_ai_generated && (
-                <div className="absolute -top-1 -right-1">
-                  <AiGeneratedBadge />
-                </div>
-              )}
+      {firstMedia && (
+        <div className="mb-3">
+          {hasImage && (
+            <img
+              src={`${API}/media/${firstMedia.id}`}
+              alt="Evidence"
+              className="w-full h-48 object-cover rounded-sm border border-border"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          {hasVideo && (
+            <div className="relative w-full h-48 bg-slate-100 rounded-sm border border-border flex items-center justify-center">
+              <Video size={48} className="text-slate-400" />
+              <span className="absolute bottom-2 right-2 text-xs bg-black/70 text-white px-2 py-1 rounded">
+                Video
+              </span>
             </div>
-          ))}
+          )}
         </div>
       )}
       
