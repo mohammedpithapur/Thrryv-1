@@ -136,7 +136,7 @@ def decode_jwt_token(token: str) -> Optional[str]:
     except jwt.InvalidTokenError:
         return None
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     user_id = decode_jwt_token(credentials.credentials)
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
