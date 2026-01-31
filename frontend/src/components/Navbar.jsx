@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, PlusCircle, LogOut } from 'lucide-react';
+import { User, PlusCircle, LogOut, Settings } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 
 const Navbar = ({ user, onLogout }) => {
   const navigate = useNavigate();
