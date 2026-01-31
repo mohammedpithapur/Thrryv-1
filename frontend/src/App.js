@@ -78,6 +78,7 @@ function App() {
           <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><Login onLogin={handleLogin} /></>} />
           <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><Register onLogin={handleLogin} /></>} />
           <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><UserProfile /></>} />
+          <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ProfileSettings user={user} onUserUpdate={handleUserUpdate} /></>} />
         </Routes>
         <Toaster position="top-center" />
       </BrowserRouter>
