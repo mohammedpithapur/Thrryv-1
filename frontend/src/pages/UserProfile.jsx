@@ -87,63 +87,19 @@ const UserProfile = () => {
       <div className="grid grid-cols-2 gap-6">
         <div>
           <h2 className="playfair text-2xl font-semibold mb-4">Recent Claims</h2>
-          {user.recent_claims && user.recent_claims.length === 0 ? (
+          {(!user.recent_claims || user.recent_claims.length === 0) ? (
             <p className="text-sm text-muted-foreground italic bg-slate-50 p-6 rounded-sm">No claims yet</p>
           ) : (
-            <div className="space-y-3">
-              {user.recent_claims && user.recent_claims.map((claim) => (
-                <div
-                  key={claim.id}
-                  onClick={() => navigate(`/claims/${claim.id}`)}
-                  className="border border-border p-4 rounded-sm hover:border-primary/50 transition-colors cursor-pointer bg-white"
-                >
-                  <p className="text-sm line-clamp-2 mb-2">{claim.text}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      {claim.domain} • {new Date(claim.created_at).toLocaleDateString()}
-                    </p>
-                    <span className="text-xs jetbrains-mono text-muted-foreground">
-                      Score: {claim.credibility_score?.toFixed(0) || 0}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-muted-foreground bg-slate-50 p-6 rounded-sm">{user.recent_claims.length} claims posted</p>
           )}
         </div>
 
         <div>
           <h2 className="playfair text-2xl font-semibold mb-4">Recent Annotations</h2>
-          {user.recent_annotations && user.recent_annotations.length === 0 ? (
+          {(!user.recent_annotations || user.recent_annotations.length === 0) ? (
             <p className="text-sm text-muted-foreground italic bg-slate-50 p-6 rounded-sm">No annotations yet</p>
           ) : (
-            <div className="space-y-3">
-              {user.recent_annotations && user.recent_annotations.map((ann) => (
-                <div
-                  key={ann.id}
-                  onClick={() => navigate(`/claims/${ann.claim_id}`)}
-                  className="border border-border p-4 rounded-sm hover:border-primary/50 transition-colors cursor-pointer bg-white"
-                >
-                  <p className="text-sm line-clamp-2 mb-2">{ann.text}</p>
-                  <div className="flex items-center justify-between">
-                    <span 
-                      className="text-xs font-medium px-2 py-1 rounded-sm"
-                      style={{
-                        backgroundColor: ann.annotation_type === 'support' ? '#ECFDF5' : 
-                                        ann.annotation_type === 'contradict' ? '#FEF2F2' : '#EEF2FF',
-                        color: ann.annotation_type === 'support' ? '#065F46' : 
-                               ann.annotation_type === 'contradict' ? '#991B1B' : '#3730A3'
-                      }}
-                    >
-                      {ann.annotation_type}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {ann.helpful_votes} helpful
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-muted-foreground bg-slate-50 p-6 rounded-sm">{user.recent_annotations.length} annotations added</p>
           )}
         </div>
       </div>
