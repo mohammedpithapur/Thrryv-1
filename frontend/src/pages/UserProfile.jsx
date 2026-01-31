@@ -9,6 +9,7 @@ const API = `${BACKEND_URL}/api`;
 
 const UserProfile = () => {
   const params = useParams();
+  const navigate = useNavigate();
   const userId = params.userId;
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
