@@ -47,6 +47,10 @@ function App() {
     setUser(userData);
   };
 
+  const handleUserUpdate = (userData) => {
+    setUser(userData);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUser(null);
