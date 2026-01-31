@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Loader2, TrendingUp } from 'lucide-react';
+import { Loader2, TrendingUp, Settings } from 'lucide-react';
+import UserAvatar from '../components/UserAvatar';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
