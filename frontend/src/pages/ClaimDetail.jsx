@@ -54,11 +54,16 @@ const ClaimDetail = ({ user }) => {
     const token = localStorage.getItem('token');
     axios.post(
       `${API}/claims/${claimId}/annotations`,
-      { text: annotationText, annotation_type: annotationType, media_ids: [] },
+      { 
+        text: annotationText, 
+        annotation_type: annotationType, 
+        media_ids: annotationMedia.map(m => m.id) 
+      },
       { headers: { Authorization: `Bearer ${token}` } }
     )
       .then(() => {
         setAnnotationText('');
+        setAnnotationMedia([]);
         toast.success('Annotation added');
         loadData();
         setSubmitting(false);
@@ -67,6 +72,37 @@ const ClaimDetail = ({ user }) => {
         toast.error('Failed to add annotation');
         setSubmitting(false);
       });
+  };
+
+  const handleAnnotationMediaUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('File size must be less than 50MB');
+      return;
+    }
+
+    setUploadingAnnotationMedia(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post(`${API}/media/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      setAnnotationMedia([...annotationMedia, response.data]);
+      toast.success('Media uploaded');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to upload');
+    } finally {
+      setUploadingAnnotationMedia(false);
+    }
   };
 
   const handleVote = (annotationId, helpful) => {
