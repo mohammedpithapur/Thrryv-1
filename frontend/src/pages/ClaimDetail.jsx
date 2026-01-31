@@ -101,6 +101,18 @@ const ClaimDetail = ({ user }) => {
   const contradictAnnotations = annotations.filter(a => a.annotation_type === 'contradict');
   const contextAnnotations = annotations.filter(a => a.annotation_type === 'context');
 
+  const renderAnnotations = (anns) => {
+    if (anns.length === 0) return null;
+    return anns.map(ann => (
+      <AnnotationCard
+        key={ann.id}
+        annotation={ann}
+        onVote={handleVote}
+        canVote={!!user}
+      />
+    ));
+  };
+
   return (
     <div data-testid="claim-detail-page" className="max-w-7xl mx-auto px-6 py-8">
       <div className="bg-card border border-border p-8 rounded-sm mb-6">
@@ -164,16 +176,7 @@ const ClaimDetail = ({ user }) => {
           {supportAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No supporting evidence yet</p>
           ) : (
-            <div>
-              {supportAnnotations.map(ann => (
-                <AnnotationCard
-                  key={ann.id}
-                  annotation={ann}
-                  onVote={handleVote}
-                  canVote={!!user}
-                />
-              ))}
-            </div>
+            <div>{renderAnnotations(supportAnnotations)}</div>
           )}
         </div>
 
@@ -185,16 +188,7 @@ const ClaimDetail = ({ user }) => {
           {contradictAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No contradictions yet</p>
           ) : (
-            <div>
-              {contradictAnnotations.map(ann => (
-                <AnnotationCard
-                  key={ann.id}
-                  annotation={ann}
-                  onVote={handleVote}
-                  canVote={!!user}
-                />
-              ))}
-            </div>
+            <div>{renderAnnotations(contradictAnnotations)}</div>
           )}
         </div>
 
@@ -206,16 +200,7 @@ const ClaimDetail = ({ user }) => {
           {contextAnnotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No context yet</p>
           ) : (
-            <div>
-              {contextAnnotations.map(ann => (
-                <AnnotationCard
-                  key={ann.id}
-                  annotation={ann}
-                  onVote={handleVote}
-                  canVote={!!user}
-                />
-              ))}
-            </div>
+            <div>{renderAnnotations(contextAnnotations)}</div>
           )}
         </div>
       </div>
