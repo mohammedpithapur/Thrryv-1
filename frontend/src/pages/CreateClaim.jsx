@@ -15,17 +15,6 @@ const CreateClaim = ({ user }) => {
   const [submitting, setSubmitting] = useState(false);
   const [uploadedMedia, setUploadedMedia] = useState([]);
 
-  const domains = [
-    'Politics',
-    'Science',
-    'Health',
-    'Technology',
-    'Economics',
-    'Environment',
-    'Society',
-    'Other'
-  ];
-
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
