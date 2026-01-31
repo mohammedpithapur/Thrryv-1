@@ -20,8 +20,8 @@ const Welcome = () => {
       <div className="border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 py-20 md:py-32">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-16 w-16 md:h-20 md:w-20 object-contain" />
+            <div className="flex flex-col items-center justify-center mb-6">
+              <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-20 w-20 md:h-24 md:w-24 object-contain mb-4" />
               <h1 className="playfair text-5xl md:text-7xl font-bold tracking-tight text-slate-900">
                 Thrryv
               </h1>
