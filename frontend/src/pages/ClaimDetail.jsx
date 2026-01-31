@@ -143,6 +143,7 @@ const ClaimDetail = ({ user }) => {
 
   return (
     <div data-testid="claim-detail-page" className="max-w-7xl mx-auto px-6 py-8">
+      {/* Claim Card */}
       <div className="bg-card border border-border p-8 rounded-sm mb-6">
         <div className="mb-4">
           <p className="text-sm text-muted-foreground mb-2">{claim.domain} • {new Date(claim.created_at).toLocaleDateString()}</p>
@@ -175,42 +176,54 @@ const ClaimDetail = ({ user }) => {
         <p className="text-sm mt-4">by {claim.author.username} (Rep: {claim.author.reputation_score.toFixed(0)})</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <div>
-          <h2 className="playfair text-xl mb-4">Support ({supportAnnotations.length})</h2>
-          {supportAnnotations.length > 0 && supportAnnotations.map(ann => (
-            <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-          ))}
-        </div>
-        <div>
-          <h2 className="playfair text-xl mb-4">Contradict ({contradictAnnotations.length})</h2>
-          {contradictAnnotations.length > 0 && contradictAnnotations.map(ann => (
-            <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-          ))}
-        </div>
-        <div>
-          <h2 className="playfair text-xl mb-4">Context ({contextAnnotations.length})</h2>
-          {contextAnnotations.length > 0 && contextAnnotations.map(ann => (
-            <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-          ))}
-        </div>
-      </div>
-
+      {/* Add Annotation Form - Right under the post */}
       {user && (
-        <form data-testid="annotation-form" onSubmit={handleSubmit} className="bg-card border p-6 rounded-sm">
-          <h2 className="playfair text-xl mb-4">Add Annotation</h2>
+        <form data-testid="annotation-form" onSubmit={handleSubmit} className="bg-card border border-border p-6 rounded-sm mb-8">
+          <h2 className="playfair text-xl font-semibold mb-4">Add Your Annotation</h2>
+          
           <div className="flex gap-2 mb-4">
-            <button type="button" onClick={() => setAnnotationType('support')} className={`px-4 py-2 rounded-sm ${annotationType === 'support' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Support</button>
-            <button type="button" onClick={() => setAnnotationType('contradict')} className={`px-4 py-2 rounded-sm ${annotationType === 'contradict' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Contradict</button>
-            <button type="button" onClick={() => setAnnotationType('context')} className={`px-4 py-2 rounded-sm ${annotationType === 'context' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Context</button>
+            <button 
+              type="button" 
+              onClick={() => setAnnotationType('support')} 
+              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
+                annotationType === 'support' 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              Support
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setAnnotationType('contradict')} 
+              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
+                annotationType === 'contradict' 
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              Contradict
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setAnnotationType('context')} 
+              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
+                annotationType === 'context' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              Context
+            </button>
           </div>
+
           <textarea
             data-testid="annotation-text-input"
             value={annotationText}
             onChange={(e) => setAnnotationText(e.target.value)}
-            className="w-full px-4 py-3 border rounded-sm mb-4"
+            className="w-full px-4 py-3 border rounded-sm mb-4 focus:outline-none focus:ring-2 focus:ring-ring"
             rows="4"
-            placeholder="Your evidence or context..."
+            placeholder="Provide evidence, sources, or context to support your annotation..."
           />
           
           <div className="mb-4">
@@ -234,11 +247,90 @@ const ClaimDetail = ({ user }) => {
             )}
           </div>
 
-          <button type="submit" disabled={submitting} data-testid="submit-annotation-btn" className="px-6 py-3 bg-primary text-primary-foreground rounded-sm">
+          <button 
+            type="submit" 
+            disabled={submitting} 
+            data-testid="submit-annotation-btn" 
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-sm hover:bg-primary/90 font-medium disabled:opacity-50"
+          >
             {submitting ? 'Submitting...' : 'Add Annotation'}
           </button>
         </form>
       )}
+
+      {!user && (
+        <div className="bg-secondary border border-border p-6 rounded-sm mb-8 text-center">
+          <p className="text-muted-foreground mb-3">Want to add evidence or context?</p>
+          <button 
+            onClick={() => navigate('/login')}
+            className="px-6 py-2 bg-primary text-primary-foreground rounded-sm hover:bg-primary/90 font-medium"
+          >
+            Sign In to Annotate
+          </button>
+        </div>
+      )}
+
+      {/* Community Annotations Header */}
+      <div className="mb-6">
+        <h2 className="playfair text-2xl font-bold mb-2">Community Annotations</h2>
+        <p className="text-sm text-muted-foreground">
+          {annotations.length} {annotations.length === 1 ? 'annotation' : 'annotations'} from the community
+        </p>
+      </div>
+
+      {/* Annotations Grid - Three columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div>
+          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
+            <span className="w-1 h-6 bg-green-600 rounded-full"></span>
+            Supporting Evidence
+            <span className="text-sm text-muted-foreground font-normal">({supportAnnotations.length})</span>
+          </h3>
+          {supportAnnotations.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No supporting evidence yet</p>
+          ) : (
+            <div>
+              {supportAnnotations.map(ann => (
+                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
+            <span className="w-1 h-6 bg-red-600 rounded-full"></span>
+            Contradictions
+            <span className="text-sm text-muted-foreground font-normal">({contradictAnnotations.length})</span>
+          </h3>
+          {contradictAnnotations.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No contradictions yet</p>
+          ) : (
+            <div>
+              {contradictAnnotations.map(ann => (
+                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
+            <span className="w-1 h-6 bg-blue-600 rounded-full"></span>
+            Context
+            <span className="text-sm text-muted-foreground font-normal">({contextAnnotations.length})</span>
+          </h3>
+          {contextAnnotations.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No context yet</p>
+          ) : (
+            <div>
+              {contextAnnotations.map(ann => (
+                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
