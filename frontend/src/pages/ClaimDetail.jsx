@@ -1,0 +1,129 @@
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import axios from 'axios';
+import TruthBadge from '../components/TruthBadge';
+import CredibilityScore from '../components/CredibilityScore';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const ClaimDetail = ({ user }) => {
+  const params = useParams();
+  const claimId = params.claimId;
+  const [claim, setClaim] = useState(null);
+  const [annotations, setAnnotations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [annotationText, setAnnotationText] = useState('');
+  const [annotationType, setAnnotationType] = useState('support');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [claimId]);
+
+  const loadData = () => {
+    axios.get(`${API}/claims/${claimId}`)
+      .then(claimRes => {
+        setClaim(claimRes.data);
+        return axios.get(`${API}/claims/${claimId}/annotations`);
+      })
+      .then(annotationsRes => {
+        setAnnotations(annotationsRes.data);
+        setLoading(false);
+      })
+      .catch(() => {
+        toast.error('Failed to load claim');
+        setLoading(false);
+      });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!user) {
+      toast.error('Please login');
+      return;
+    }
+    if (!annotationText.trim()) return;
+
+    setSubmitting(true);
+    const token = localStorage.getItem('token');
+    axios.post(
+      `${API}/claims/${claimId}/annotations`,
+      { text: annotationText, annotation_type: annotationType, media_ids: [] },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then(() => {
+        setAnnotationText('');
+        toast.success('Annotation added');
+        loadData();
+        setSubmitting(false);
+      })
+      .catch(() => {
+        toast.error('Failed to add annotation');
+        setSubmitting(false);
+      });
+  };
+
+  if (loading) {
+    return <div data-testid="loading-spinner" className="flex items-center justify-center min-h-[400px]"><Loader2 className="animate-spin" size={32} /></div>;
+  }
+
+  if (!claim) {
+    return <div className="text-center py-12"><p>Claim not found</p></div>;
+  }
+
+  return (
+    <div data-testid="claim-detail-page" className="max-w-7xl mx-auto px-6 py-8">
+      <div className="bg-card border border-border p-8 rounded-sm mb-6">
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground mb-2">{claim.domain}</p>
+          <h1 className="playfair text-3xl font-bold mb-4">{claim.text}</h1>
+          <TruthBadge label={claim.truth_label} />
+        </div>
+        <CredibilityScore score={claim.credibility_score} />
+        <p className="text-sm mt-4">by {claim.author.username}</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6 mb-8">
+        <div>
+          <h2 className="playfair text-xl mb-4">Support</h2>
+          <p className="text-sm text-muted-foreground">{annotations.filter(a => a.annotation_type === 'support').length} annotations</p>
+        </div>
+        <div>
+          <h2 className="playfair text-xl mb-4">Contradict</h2>
+          <p className="text-sm text-muted-foreground">{annotations.filter(a => a.annotation_type === 'contradict').length} annotations</p>
+        </div>
+        <div>
+          <h2 className="playfair text-xl mb-4">Context</h2>
+          <p className="text-sm text-muted-foreground">{annotations.filter(a => a.annotation_type === 'context').length} annotations</p>
+        </div>
+      </div>
+
+      {user && (
+        <form data-testid="annotation-form" onSubmit={handleSubmit} className="bg-card border p-6 rounded-sm">
+          <h2 className="playfair text-xl mb-4">Add Annotation</h2>
+          <div className="flex gap-2 mb-4">
+            <button type="button" onClick={() => setAnnotationType('support')} className={`px-4 py-2 rounded-sm ${annotationType === 'support' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Support</button>
+            <button type="button" onClick={() => setAnnotationType('contradict')} className={`px-4 py-2 rounded-sm ${annotationType === 'contradict' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Contradict</button>
+            <button type="button" onClick={() => setAnnotationType('context')} className={`px-4 py-2 rounded-sm ${annotationType === 'context' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>Context</button>
+          </div>
+          <textarea
+            data-testid="annotation-text-input"
+            value={annotationText}
+            onChange={(e) => setAnnotationText(e.target.value)}
+            className="w-full px-4 py-3 border rounded-sm mb-4"
+            rows="4"
+            placeholder="Your evidence or context..."
+          />
+          <button type="submit" disabled={submitting} data-testid="submit-annotation-btn" className="px-6 py-3 bg-primary text-primary-foreground rounded-sm">
+            {submitting ? 'Submitting...' : 'Add Annotation'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+export default ClaimDetail;
