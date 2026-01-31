@@ -21,24 +21,22 @@ const ClaimDetail = ({ user }) => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchClaimAndAnnotations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadClaim = async () => {
+      try {
+        const [claimRes, annotationsRes] = await Promise.all([
+          axios.get(`${API}/claims/${claimId}`),
+          axios.get(`${API}/claims/${claimId}/annotations`)
+        ]);
+        setClaim(claimRes.data);
+        setAnnotations(annotationsRes.data);
+        setLoading(false);
+      } catch (err) {
+        toast.error('Failed to load claim');
+        setLoading(false);
+      }
+    };
+    loadClaim();
   }, [claimId]);
-
-  const fetchClaimAndAnnotations = async () => {
-    try {
-      const [claimRes, annotationsRes] = await Promise.all([
-        axios.get(`${API}/claims/${claimId}`),
-        axios.get(`${API}/claims/${claimId}/annotations`)
-      ]);
-      setClaim(claimRes.data);
-      setAnnotations(annotationsRes.data);
-      setLoading(false);
-    } catch (err) {
-      toast.error('Failed to load claim');
-      setLoading(false);
-    }
-  };
 
   const handleSubmitAnnotation = async (e) => {
     e.preventDefault();
