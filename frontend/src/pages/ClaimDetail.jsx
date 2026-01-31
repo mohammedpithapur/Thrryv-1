@@ -22,6 +22,7 @@ const ClaimDetail = ({ user }) => {
 
   useEffect(() => {
     fetchClaimAndAnnotations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claimId]);
 
   const fetchClaimAndAnnotations = async () => {
