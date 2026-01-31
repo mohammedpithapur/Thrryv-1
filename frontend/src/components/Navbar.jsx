@@ -10,8 +10,9 @@ const Navbar = ({ user, onLogout }) => {
     <nav data-testid="navbar" className="border-b border-border bg-white sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          <Link to="/feed" className="playfair text-2xl font-bold tracking-tight">
-            Thrryv
+          <Link to="/feed" className="flex items-center gap-3">
+            <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-10 w-10 object-contain" />
+            <span className="playfair text-2xl font-bold tracking-tight">Thrryv</span>
           </Link>
 
           <div className="flex items-center gap-4">
