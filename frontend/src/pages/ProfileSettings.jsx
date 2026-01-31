@@ -103,9 +103,9 @@ const ProfileSettings = ({ user, onUserUpdate }) => {
     }
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    toast.info('Dark mode coming soon!');
+  const handleToggleDarkMode = () => {
+    toggleDarkMode();
+    toast.success(darkMode ? 'Light mode enabled' : 'Dark mode enabled');
   };
 
   return (
