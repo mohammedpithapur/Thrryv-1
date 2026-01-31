@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-01-31T18:56:49.891482",
+  "total_tests": 10,
+  "passed_tests": 10,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "User Login",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Current User",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Media Upload",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Claim",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Claim Detail",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Create Annotation",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Annotations",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get Claims Feed",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Get User Profile",
+      "success": true,
+      "details": "Status: 200"
+    }
+  ]
+}
