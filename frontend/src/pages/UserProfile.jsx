@@ -36,17 +36,27 @@ const UserProfile = () => {
   return (
     <div data-testid="user-profile-page" className="max-w-5xl mx-auto px-6 py-8">
       <div className="bg-card border p-8 rounded-sm mb-6">
-        <div className="flex justify-between mb-6">
-          <div>
-            <h1 className="playfair text-3xl font-bold mb-2">{user.username}</h1>
-            <p className="text-muted-foreground">{user.email}</p>
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center gap-4">
+            <UserAvatar user={user} size="xl" />
+            <div>
+              <h1 className="playfair text-3xl font-bold mb-2">{user.username}</h1>
+              <p className="text-muted-foreground">{user.email}</p>
+            </div>
           </div>
           <div className="text-right">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 justify-end">
               <TrendingUp size={20} className="text-green-600" />
               <span className="text-3xl font-bold jetbrains-mono">{user.reputation_score.toFixed(0)}</span>
             </div>
             <p className="text-sm text-muted-foreground">Reputation</p>
+            <button
+              onClick={() => navigate('/settings')}
+              className="mt-3 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-sm text-sm font-medium flex items-center gap-2"
+            >
+              <Settings size={16} />
+              Edit Profile
+            </button>
           </div>
         </div>
 
