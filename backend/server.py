@@ -354,33 +354,64 @@ async def get_media(media_id: str):
 async def ai_fact_check_claim(claim_text: str) -> tuple[str, float]:
     """Use AI to fact-check the claim and return truth label and confidence"""
     
-    # Simple rule-based fact checking for common false claims
-    false_claims_patterns = [
-        ("pyramids", "russia", "The pyramids are in Egypt, not Russia"),
-        ("earth", "flat", "The Earth is scientifically proven to be spherical"),
-        ("vaccines", "autism", "Multiple studies have debunked this claim"),
-        ("moon landing", "fake", "Moon landing is scientifically verified"),
-        ("great wall", "space", "Great Wall is not visible from space with naked eye"),
-    ]
-    
     claim_lower = claim_text.lower()
     
-    # Check for obviously false claims
+    # Comprehensive false claims database
+    false_claims_patterns = [
+        # Historical facts
+        (["pyramids", "russia"], "False", 95.0, "The pyramids are in Egypt, not Russia"),
+        (["taj mahal", "aurangzeb"], "False", 95.0, "Taj Mahal was built by Shah Jahan, not Aurangzeb"),
+        (["taj mahal", "built by", "aurangazeb"], "False", 95.0, "Taj Mahal was built by Shah Jahan in 1632-1653"),
+        (["columbus", "discovered", "america", "first"], "False", 90.0, "Indigenous peoples lived in America for thousands of years before Columbus"),
+        (["napoleon", "short"], "False", 85.0, "Napoleon was average height for his time"),
+        (["great wall", "space", "visible"], "False", 95.0, "Great Wall is not visible from space with naked eye"),
+        
+        # Science myths
+        (["earth", "flat"], "False", 98.0, "The Earth is scientifically proven to be spherical"),
+        (["brain", "10%", "use"], "False", 95.0, "Humans use virtually all parts of their brain"),
+        (["vaccine", "autism", "cause"], "False", 98.0, "Multiple studies have debunked any link between vaccines and autism"),
+        (["gold", "fish", "memory", "3 seconds"], "False", 90.0, "Goldfish have memory spanning months"),
+        (["lightning", "strike", "same", "place", "twice"], "False", 85.0, "Lightning can and does strike the same place multiple times"),
+        
+        # Technology myths
+        (["moon landing", "fake", "hoax"], "False", 95.0, "Moon landing is scientifically verified with overwhelming evidence"),
+        (["5g", "coronavirus", "covid"], "False", 98.0, "5G has no connection to COVID-19"),
+        
+        # Health myths
+        (["cracking", "knuckles", "arthritis"], "False", 85.0, "Cracking knuckles doesn't cause arthritis"),
+        (["shaving", "hair", "thicker", "faster"], "False", 90.0, "Shaving doesn't change hair thickness or growth rate"),
+        (["sugar", "hyperactive", "children"], "False", 85.0, "Sugar doesn't cause hyperactivity in children"),
+    ]
+    
+    # Check each false claim pattern
     for pattern in false_claims_patterns:
-        if all(keyword in claim_lower for keyword in pattern[:2]):
-            return "False", 95.0
+        keywords = pattern[0]
+        # Check if all keywords in the pattern are present
+        if all(keyword in claim_lower for keyword in keywords):
+            return pattern[1], pattern[2]  # Return label and confidence
     
     # Check for likely true claims based on scientific consensus keywords
-    true_indicators = ["scientific consensus", "peer-reviewed", "according to", "studies show", "research indicates"]
+    true_indicators = [
+        "scientific consensus", "peer-reviewed", "according to", "studies show", 
+        "research indicates", "scientifically proven", "evidence shows",
+        "data suggests", "experts agree", "confirmed by research"
+    ]
     if any(indicator in claim_lower for indicator in true_indicators):
-        return "Likely True", 70.0
+        # Additional check: make sure it's not contradicting a false claim
+        if not any(all(kw in claim_lower for kw in pattern[0]) for pattern in false_claims_patterns):
+            return "Likely True", 70.0
     
     # Check for uncertain/speculative language
-    uncertain_indicators = ["might", "could", "possibly", "perhaps", "allegedly"]
+    uncertain_indicators = ["might", "could", "possibly", "perhaps", "allegedly", "reportedly", "supposedly"]
     if any(indicator in claim_lower for indicator in uncertain_indicators):
         return "Uncertain", 40.0
     
-    # Default to uncertain
+    # Check for obviously exaggerated claims
+    exaggeration_indicators = ["100%", "always", "never", "everyone", "nobody", "impossible", "absolutely"]
+    if any(indicator in claim_lower for indicator in exaggeration_indicators):
+        return "Likely False", 60.0
+    
+    # Default to uncertain for claims we can't verify
     return "Uncertain", 50.0
 
 # AI Domain Classification
