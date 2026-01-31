@@ -108,6 +108,32 @@ const ClaimDetail = ({ user }) => {
           <h1 className="playfair text-3xl font-bold mb-4">{claim.text}</h1>
           <TruthBadge label={claim.truth_label} />
         </div>
+
+        {claim.media && claim.media.length > 0 && (
+          <div className="my-6 flex gap-4 flex-wrap">
+            {claim.media.map((media, idx) => (
+              <div key={idx} className="relative">
+                {media.file_type && media.file_type.startsWith('image/') && (
+                  <img
+                    src={`${API}/media/${media.id}`}
+                    alt="Claim evidence"
+                    className="max-w-md h-auto rounded-sm border border-border shadow-sm"
+                  />
+                )}
+                {media.file_type && media.file_type.startsWith('video/') && (
+                  <video
+                    controls
+                    className="max-w-md h-auto rounded-sm border border-border shadow-sm"
+                  >
+                    <source src={`${API}/media/${media.id}`} type={media.file_type} />
+                    Your browser does not support video playback.
+                  </video>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <CredibilityScore score={claim.credibility_score} />
         <p className="text-sm mt-4">by {claim.author.username} (Rep: {claim.author.reputation_score.toFixed(0)})</p>
       </div>
