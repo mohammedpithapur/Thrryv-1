@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TruthBadge from './TruthBadge';
-import { MessageSquare, Video } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 const ClaimCard = ({ claim }) => {
   const navigate = useNavigate();
@@ -44,12 +44,15 @@ const ClaimCard = ({ claim }) => {
             />
           )}
           {hasVideo && (
-            <div className="relative w-full h-48 bg-slate-100 rounded-sm border border-border flex items-center justify-center">
-              <Video size={48} className="text-slate-400" />
-              <span className="absolute bottom-2 right-2 text-xs bg-black/70 text-white px-2 py-1 rounded">
-                Video
-              </span>
-            </div>
+            <video
+              src={`${API}/media/${firstMedia.id}`}
+              className="w-full h-48 object-cover rounded-sm border border-border"
+              autoPlay
+              muted
+              loop
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
         </div>
       )}
