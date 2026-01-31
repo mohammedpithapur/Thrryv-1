@@ -69,17 +69,17 @@ const UserProfile = () => {
         </div>
 
         <div className="grid grid-cols-3 gap-6 pt-6 border-t border-border">
-          <div className="text-center p-4 bg-slate-50 rounded-sm">
+          <div className="text-center p-4 bg-secondary rounded-sm">
             <p className="text-sm text-muted-foreground mb-1">Claims Posted</p>
-            <p className="text-3xl font-bold jetbrains-mono text-slate-900">{user.contribution_stats.claims_posted}</p>
+            <p className="text-3xl font-bold jetbrains-mono">{user.contribution_stats.claims_posted}</p>
           </div>
-          <div className="text-center p-4 bg-slate-50 rounded-sm">
+          <div className="text-center p-4 bg-secondary rounded-sm">
             <p className="text-sm text-muted-foreground mb-1">Annotations</p>
-            <p className="text-3xl font-bold jetbrains-mono text-slate-900">{user.contribution_stats.annotations_added}</p>
+            <p className="text-3xl font-bold jetbrains-mono">{user.contribution_stats.annotations_added}</p>
           </div>
-          <div className="text-center p-4 bg-slate-50 rounded-sm">
+          <div className="text-center p-4 bg-secondary rounded-sm">
             <p className="text-sm text-muted-foreground mb-1">Helpful Votes</p>
-            <p className="text-3xl font-bold jetbrains-mono text-slate-900">{user.contribution_stats.helpful_votes_received}</p>
+            <p className="text-3xl font-bold jetbrains-mono">{user.contribution_stats.helpful_votes_received}</p>
           </div>
         </div>
       </div>
@@ -88,18 +88,18 @@ const UserProfile = () => {
         <div>
           <h2 className="playfair text-2xl font-semibold mb-4">Recent Claims</h2>
           {(!user.recent_claims || user.recent_claims.length === 0) ? (
-            <p className="text-sm text-muted-foreground italic bg-slate-50 p-6 rounded-sm">No claims yet</p>
+            <p className="text-sm text-muted-foreground italic bg-secondary p-6 rounded-sm">No claims yet</p>
           ) : (
-            <p className="text-sm text-muted-foreground bg-slate-50 p-6 rounded-sm">{user.recent_claims.length} claims posted</p>
+            <p className="text-sm text-muted-foreground bg-secondary p-6 rounded-sm">{user.recent_claims.length} claims posted</p>
           )}
         </div>
 
         <div>
           <h2 className="playfair text-2xl font-semibold mb-4">Recent Annotations</h2>
           {(!user.recent_annotations || user.recent_annotations.length === 0) ? (
-            <p className="text-sm text-muted-foreground italic bg-slate-50 p-6 rounded-sm">No annotations yet</p>
+            <p className="text-sm text-muted-foreground italic bg-secondary p-6 rounded-sm">No annotations yet</p>
           ) : (
-            <p className="text-sm text-muted-foreground bg-slate-50 p-6 rounded-sm">{user.recent_annotations.length} annotations added</p>
+            <p className="text-sm text-muted-foreground bg-secondary p-6 rounded-sm">{user.recent_annotations.length} annotations added</p>
           )}
         </div>
       </div>
