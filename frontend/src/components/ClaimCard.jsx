@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import TruthBadge from './TruthBadge';
+import UserAvatar from './UserAvatar';
 import { MessageSquare } from 'lucide-react';
 
 const ClaimCard = ({ claim }) => {
