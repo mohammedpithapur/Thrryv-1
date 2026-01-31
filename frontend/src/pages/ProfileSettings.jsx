@@ -228,7 +228,8 @@ const ProfileSettings = ({ user, onUserUpdate }) => {
             </p>
           </div>
           <button
-            onClick={toggleDarkMode}
+            onClick={handleToggleDarkMode}
+            data-testid="dark-mode-toggle"
             className={`relative inline-flex h-12 w-20 items-center rounded-full transition-colors ${
               darkMode ? 'bg-slate-800' : 'bg-slate-200'
             }`}
