@@ -31,7 +31,7 @@ const Welcome = () => {
             </p>
             <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed">
               A transparent fact-checking platform where claims are immutable, evidence is everything,
-              and your reputation is built on accuracy—not volume.
+              and your reputation is built on accuracy, not volume.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
@@ -71,7 +71,7 @@ const Welcome = () => {
               <div className="mb-2 text-sm font-semibold text-blue-600 tracking-wider">STEP 1</div>
               <h3 className="text-2xl font-bold mb-4 text-slate-900">Post Claims</h3>
               <p className="text-slate-600 leading-relaxed">
-                Share factual assertions with evidence. Claims are immutable once posted—truth is permanent.
+                Share factual assertions with evidence. Claims are immutable once posted, truth is permanent.
               </p>
             </div>
 
@@ -93,7 +93,7 @@ const Welcome = () => {
               <div className="mb-2 text-sm font-semibold text-purple-600 tracking-wider">STEP 3</div>
               <h3 className="text-2xl font-bold mb-4 text-slate-900">Build Reputation</h3>
               <p className="text-slate-600 leading-relaxed">
-                Your reputation grows when your contributions age well—accuracy over time, not quick likes.
+                Your reputation grows when your contributions age well. Accuracy over time, not quick likes.
               </p>
             </div>
           </div>
@@ -150,7 +150,7 @@ const Welcome = () => {
               <div>
                 <h3 className="font-bold text-xl mb-3 text-slate-900">Quality Over Volume</h3>
                 <p className="text-slate-600 leading-relaxed">
-                  Reputation is earned through accurate, well-evidenced contributions—not by posting the most.
+                  Reputation is earned through accurate, well-evidenced contributions, not by posting the most.
                 </p>
               </div>
             </div>
