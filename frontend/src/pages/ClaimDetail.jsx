@@ -66,7 +66,14 @@ const ClaimDetail = ({ user }) => {
       );
       setAnnotationText('');
       toast.success('Annotation added successfully');
-      fetchClaimAndAnnotations();
+      
+      // Reload data
+      const [claimRes, annotationsRes] = await Promise.all([
+        axios.get(`${API}/claims/${claimId}`),
+        axios.get(`${API}/claims/${claimId}/annotations`)
+      ]);
+      setClaim(claimRes.data);
+      setAnnotations(annotationsRes.data);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to add annotation');
     } finally {
