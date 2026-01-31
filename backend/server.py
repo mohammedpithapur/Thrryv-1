@@ -72,7 +72,6 @@ class UserResponse(BaseModel):
 
 class ClaimCreate(BaseModel):
     text: str
-    domain: str
     confidence_level: int
     media_ids: Optional[List[str]] = []
 
