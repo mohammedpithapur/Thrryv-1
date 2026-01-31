@@ -125,22 +125,9 @@ const CreateClaim = ({ user }) => {
               <span className="text-xs text-destructive">Exceeds word limit</span>
             )}
           </div>
-        </div>
-
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Domain</label>
-          <select
-            data-testid="domain-select"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {domains.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+          <p className="text-xs text-muted-foreground mt-2">
+            💡 Domain will be automatically classified by AI based on your claim content
+          </p>
         </div>
 
         <div className="mb-6">
