@@ -27,7 +27,7 @@ const Register = ({ onLogin }) => {
       localStorage.setItem('token', response.data.token);
       onLogin(response.data.user);
       toast.success('Registration successful');
-      navigate('/');
+      navigate('/feed');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Registration failed');
     } finally {
