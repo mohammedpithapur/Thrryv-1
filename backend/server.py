@@ -811,13 +811,17 @@ async def update_user_settings(
         return {"message": "Settings updated successfully"}
     
     return {"message": "No changes made"}
+
+# User profile
+@api_router.get("/users/{user_id}")
+async def get_user_profile(user_id: str):
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Get user's claims and annotations
-    claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).to_list(length=100)
-    annotations = await db.annotations.find({"author_id": user_id}, {"_id": 0}).to_list(length=100)
+    claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(length=5)
+    annotations = await db.annotations.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(length=5)
     
     return {
         "id": user['id'],
@@ -826,8 +830,9 @@ async def update_user_settings(
         "reputation_score": user['reputation_score'],
         "contribution_stats": user['contribution_stats'],
         "created_at": user['created_at'],
-        "recent_claims": claims[:5],
-        "recent_annotations": annotations[:5]
+        "profile_picture": user.get('profile_picture'),
+        "recent_claims": claims,
+        "recent_annotations": annotations
     }
 
 app.include_router(api_router)
