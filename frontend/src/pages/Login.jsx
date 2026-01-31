@@ -25,7 +25,7 @@ const Login = ({ onLogin }) => {
       localStorage.setItem('token', response.data.token);
       onLogin(response.data.user);
       toast.success('Login successful');
-      navigate('/');
+      navigate('/feed');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Login failed');
     } finally {
