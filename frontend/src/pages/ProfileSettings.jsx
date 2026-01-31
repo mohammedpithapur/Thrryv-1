@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import UserAvatar from '../components/UserAvatar';
+import { useTheme } from '../context/ThemeContext';
 import { Camera, Moon, Sun } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -10,13 +11,13 @@ const API = `${BACKEND_URL}/api`;
 
 const ProfileSettings = ({ user, onUserUpdate }) => {
   const navigate = useNavigate();
+  const { darkMode, toggleDarkMode } = useTheme();
   const [username, setUsername] = useState(user?.username || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
   if (!user) {
     navigate('/login');
