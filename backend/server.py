@@ -351,6 +351,36 @@ async def get_media(media_id: str):
     
     return FileResponse(file_path, media_type=media['file_type'])
 
+# AI Domain Classification
+async def classify_claim_domain(claim_text: str) -> str:
+    """Use AI to classify the claim into a domain"""
+    
+    # Check if we have OpenAI or other LLM API key
+    # For now, use a simple keyword-based classification as fallback
+    domains_keywords = {
+        "Science": ["scientific", "research", "study", "evidence", "experiment", "data", "scientists", "climate", "biology", "physics"],
+        "Health": ["health", "medical", "disease", "vaccine", "treatment", "medicine", "exercise", "wellness", "mental", "physical"],
+        "Technology": ["technology", "tech", "software", "digital", "computer", "internet", "AI", "electric", "innovation", "device"],
+        "Politics": ["political", "government", "election", "policy", "law", "president", "congress", "vote", "democracy"],
+        "Economics": ["economic", "economy", "financial", "market", "trade", "poverty", "wealth", "GDP", "inflation", "business"],
+        "Environment": ["environment", "climate", "pollution", "renewable", "energy", "nature", "conservation", "sustainability"],
+        "History": ["historical", "history", "ancient", "past", "century", "war", "empire", "civilization"],
+        "Society": ["social", "society", "culture", "community", "people", "demographic", "population"]
+    }
+    
+    claim_lower = claim_text.lower()
+    domain_scores = {}
+    
+    for domain, keywords in domains_keywords.items():
+        score = sum(1 for keyword in keywords if keyword in claim_lower)
+        if score > 0:
+            domain_scores[domain] = score
+    
+    if domain_scores:
+        return max(domain_scores, key=domain_scores.get)
+    
+    return "Other"
+
 # Claims
 @api_router.post("/claims")
 async def create_claim(
@@ -358,6 +388,9 @@ async def create_claim(
     current_user = Depends(get_current_user)
 ):
     claim_id = str(uuid.uuid4())
+    
+    # AI-classify the domain
+    ai_domain = await classify_claim_domain(claim_data.text)
     
     # Get media objects
     media_list = []
@@ -370,7 +403,7 @@ async def create_claim(
     claim = {
         "id": claim_id,
         "text": claim_data.text,
-        "domain": claim_data.domain,
+        "domain": ai_domain,  # Use AI-classified domain
         "confidence_level": claim_data.confidence_level,
         "author_id": current_user['id'],
         "media_ids": claim_data.media_ids or [],
@@ -390,7 +423,7 @@ async def create_claim(
     return {
         "id": claim_id,
         "text": claim_data.text,
-        "domain": claim_data.domain,
+        "domain": ai_domain,
         "author": {
             "id": current_user['id'],
             "username": current_user['username'],
