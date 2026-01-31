@@ -10,7 +10,6 @@ const API = `${BACKEND_URL}/api`;
 const CreateClaim = ({ user }) => {
   const navigate = useNavigate();
   const [text, setText] = useState('');
-  const [domain, setDomain] = useState('Politics');
   const [confidenceLevel, setConfidenceLevel] = useState(50);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
