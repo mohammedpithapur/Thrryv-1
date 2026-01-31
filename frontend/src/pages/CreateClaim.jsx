@@ -78,7 +78,6 @@ const CreateClaim = ({ user }) => {
         `${API}/claims`,
         {
           text,
-          domain,
           confidence_level: confidenceLevel,
           media_ids: uploadedMedia.map(m => m.id)
         },
@@ -87,7 +86,7 @@ const CreateClaim = ({ user }) => {
         }
       );
 
-      toast.success('Claim created successfully');
+      toast.success(`Claim created! AI classified it as: ${response.data.domain}`);
       navigate(`/claims/${response.data.id}`);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create claim');
