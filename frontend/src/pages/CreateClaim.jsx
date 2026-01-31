@@ -74,7 +74,7 @@ const CreateClaim = ({ user }) => {
         }
       );
 
-      toast.success(`Claim created! AI classified it as: ${response.data.domain}`);
+      toast.success(`Claim created! AI classified as: ${response.data.domain} | Truth: ${response.data.truth_label}`);
       navigate(`/claims/${response.data.id}`);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create claim');
