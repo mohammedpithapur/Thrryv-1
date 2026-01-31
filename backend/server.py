@@ -336,6 +336,21 @@ async def upload_media(
         "ai_confidence": confidence
     }
 
+# Media serving
+@api_router.get("/media/{media_id}")
+async def get_media(media_id: str):
+    from fastapi.responses import FileResponse
+    
+    media = await db.media.find_one({"id": media_id}, {"_id": 0})
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+    
+    file_path = media['file_path']
+    if not Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(file_path, media_type=media['file_type'])
+
 # Claims
 @api_router.post("/claims")
 async def create_claim(
