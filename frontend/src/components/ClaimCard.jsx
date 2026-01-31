@@ -60,10 +60,13 @@ const ClaimCard = ({ claim }) => {
       
       <div className="flex items-center justify-between pt-3 border-t border-border">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{claim.author.username}</span>
-          <span className="text-xs text-muted-foreground jetbrains-mono">
-            Rep: {claim.author.reputation_score.toFixed(0)}
-          </span>
+          <UserAvatar user={claim.author} size="sm" />
+          <div>
+            <span className="text-sm font-medium block">{claim.author.username}</span>
+            <span className="text-xs text-muted-foreground jetbrains-mono">
+              Rep: {claim.author.reputation_score.toFixed(0)}
+            </span>
+          </div>
         </div>
         
         <div className="flex items-center gap-4">
