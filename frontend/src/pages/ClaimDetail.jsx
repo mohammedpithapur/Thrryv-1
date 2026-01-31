@@ -100,6 +100,9 @@ const ClaimDetail = ({ user }) => {
   const contradictAnnotations = annotations.filter(a => a.annotation_type === 'contradict');
   const contextAnnotations = annotations.filter(a => a.annotation_type === 'context');
 
+  const hasMedia = claim.media && claim.media.length > 0;
+  const firstMedia = hasMedia ? claim.media[0] : null;
+
   return (
     <div data-testid="claim-detail-page" className="max-w-7xl mx-auto px-6 py-8">
       <div className="bg-card border border-border p-8 rounded-sm mb-6">
@@ -109,28 +112,24 @@ const ClaimDetail = ({ user }) => {
           <TruthBadge label={claim.truth_label} />
         </div>
 
-        {claim.media && claim.media.length > 0 && (
-          <div className="my-6 flex gap-4 flex-wrap">
-            {claim.media.map((media, idx) => (
-              <div key={idx} className="relative">
-                {media.file_type && media.file_type.startsWith('image/') && (
-                  <img
-                    src={`${API}/media/${media.id}`}
-                    alt="Claim evidence"
-                    className="max-w-md h-auto rounded-sm border border-border shadow-sm"
-                  />
-                )}
-                {media.file_type && media.file_type.startsWith('video/') && (
-                  <video
-                    controls
-                    className="max-w-md h-auto rounded-sm border border-border shadow-sm"
-                  >
-                    <source src={`${API}/media/${media.id}`} type={media.file_type} />
-                    Your browser does not support video playback.
-                  </video>
-                )}
-              </div>
-            ))}
+        {firstMedia && (
+          <div className="my-6">
+            {firstMedia.file_type && firstMedia.file_type.startsWith('image/') && (
+              <img
+                src={`${API}/media/${firstMedia.id}`}
+                alt="Claim evidence"
+                className="max-w-2xl w-full h-auto rounded-sm border border-border shadow-sm"
+              />
+            )}
+            {firstMedia.file_type && firstMedia.file_type.startsWith('video/') && (
+              <video
+                controls
+                className="max-w-2xl w-full h-auto rounded-sm border border-border shadow-sm"
+              >
+                <source src={`${API}/media/${firstMedia.id}`} type={firstMedia.file_type} />
+                Your browser does not support video playback.
+              </video>
+            )}
           </div>
         )}
 
