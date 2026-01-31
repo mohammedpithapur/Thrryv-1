@@ -7,6 +7,15 @@ const Welcome = () => {
 
   return (
     <div data-testid="welcome-page" className="min-h-screen bg-white">
+      {/* Minimal Header */}
+      <header className="px-8 py-6 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
+          <h1 className="playfair text-2xl font-semibold tracking-tight text-slate-900">
+            Thrryv
+          </h1>
+        </div>
+      </header>
       {/* Hero Section - Improved spacing and typography */}
       <div className="border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 py-20 md:py-32">
