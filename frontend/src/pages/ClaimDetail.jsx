@@ -19,6 +19,8 @@ const ClaimDetail = ({ user }) => {
   const [annotationText, setAnnotationText] = useState('');
   const [annotationType, setAnnotationType] = useState('support');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingAnnotationMedia, setUploadingAnnotationMedia] = useState(false);
+  const [annotationMedia, setAnnotationMedia] = useState([]);
 
   useEffect(() => {
     loadData();
