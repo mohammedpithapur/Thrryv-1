@@ -6,7 +6,7 @@ import tempfile
 import os
 
 class ThrryveAPITester:
-    def __init__(self, base_url="https://truthscore-4.preview.emergentagent.com"):
+    def __init__(self, base_url="https://clarifai-2.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.token = None
