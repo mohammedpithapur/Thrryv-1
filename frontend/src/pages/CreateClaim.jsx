@@ -164,7 +164,7 @@ const CreateClaim = ({ user }) => {
         </div>
 
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Supporting Media (Optional)</label>
+          <label className="block text-sm font-medium mb-2">Supporting Media</label>
           <div className="border-2 border-dashed border-border rounded-sm p-6 text-center">
             <input
               data-testid="media-upload-input"
@@ -184,7 +184,7 @@ const CreateClaim = ({ user }) => {
                 {uploading ? 'Uploading...' : 'Click to upload image or video'}
               </span>
               <span className="text-xs text-muted-foreground">
-                Max 50MB. Images and videos up to 30 seconds.
+                Max 50MB. Supports images and short videos.
               </span>
             </label>
           </div>
