@@ -288,7 +288,9 @@ async def login(credentials: UserLogin):
             "id": user['id'],
             "username": user['username'],
             "email": user['email'],
-            "reputation_score": user['reputation_score']
+            "bio": user.get('bio', ''),
+            "reputation_score": user['reputation_score'],
+            "profile_picture": user.get('profile_picture')
         }
     }
 
