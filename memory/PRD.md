@@ -175,9 +175,11 @@ CORS_ORIGINS=*
 ### P2 - Medium Priority
 - Interactive tutorial for first-time users
 - Video autoplay verification with real video files
-- Refactor rule-based AI to data-driven structure
+- Refactor rule-based AI fact-checker to data-driven structure
+- Add media analysis to annotations (not just claims)
 
 ### P3 - Low Priority
 - Enhanced credibility algorithm
 - User notifications system
 - Claim sharing functionality
+- Leaderboard for top contributors
