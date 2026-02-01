@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Upload, TrendingUp, Sparkles } from 'lucide-react';
+import { Upload, TrendingUp, Sparkles, Loader2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -16,6 +16,7 @@ const CreateClaim = ({ user }) => {
   const [uploadedMedia, setUploadedMedia] = useState([]);
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [showEvaluation, setShowEvaluation] = useState(false);
+  const [createdClaimId, setCreatedClaimId] = useState(null);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -48,6 +49,8 @@ const CreateClaim = ({ user }) => {
     }
   };
 
+  const wordCount = text.trim().split(/\s+/).filter(w => w).length;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -56,12 +59,22 @@ const CreateClaim = ({ user }) => {
       return;
     }
 
-    if (text.length > 250) {
-      toast.error('Claim text must be 250 words or less');
+    // Strict 250 word limit enforcement
+    if (wordCount > 250) {
+      toast.error('Claim must be 250 words or less. Please shorten your claim.');
+      return;
+    }
+
+    if (wordCount === 0) {
+      toast.error('Please enter your claim text');
       return;
     }
 
     setSubmitting(true);
+    
+    // Navigate to feed first with loading state
+    navigate('/feed', { state: { evaluating: true } });
+    
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
@@ -77,30 +90,29 @@ const CreateClaim = ({ user }) => {
       );
 
       const evaluation = response.data.baseline_evaluation;
+      setCreatedClaimId(response.data.id);
       setEvaluationResult(evaluation);
       
       if (evaluation && evaluation.qualifies_for_boost && evaluation.reputation_boost > 0) {
+        // Show congratulatory modal
         setShowEvaluation(true);
-        toast.success(
-          `Claim created! +${evaluation.reputation_boost.toFixed(1)} reputation boost!`,
-          { duration: 5000 }
-        );
-        // Wait to show evaluation before navigating
-        setTimeout(() => {
-          navigate(`/claims/${response.data.id}`);
-        }, 3000);
       } else {
         toast.success(`Claim created! AI classified as: ${response.data.domain} | Truth: ${response.data.truth_label}`);
-        navigate(`/claims/${response.data.id}`);
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create claim');
+      navigate('/create-claim');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const wordCount = text.trim().split(/\s+/).filter(w => w).length;
+  const handleDismissEvaluation = () => {
+    setShowEvaluation(false);
+    if (createdClaimId) {
+      navigate(`/claims/${createdClaimId}`);
+    }
+  };
 
   return (
     <div data-testid="create-claim-page" className="max-w-3xl mx-auto px-6 py-8">
