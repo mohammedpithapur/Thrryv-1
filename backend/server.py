@@ -297,9 +297,11 @@ async def get_me(current_user = Depends(get_current_user)):
     return {
         "id": current_user['id'],
         "username": current_user['username'],
-        "email": current_user['email'],
+        "email": current_user['email'],  # Email only visible to the user themselves
+        "bio": current_user.get('bio', ''),
         "reputation_score": current_user['reputation_score'],
-        "contribution_stats": current_user['contribution_stats']
+        "contribution_stats": current_user['contribution_stats'],
+        "profile_picture": current_user.get('profile_picture')
     }
 
 # Media upload
