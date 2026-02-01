@@ -1111,11 +1111,6 @@ async def get_user_profile(user_id: str):
         "recent_claims": claims,
         "recent_annotations": annotations
     }
-        "created_at": user['created_at'],
-        "profile_picture": user.get('profile_picture'),
-        "recent_claims": claims,
-        "recent_annotations": annotations
-    }
 
 # Get all user claims
 @api_router.get("/users/{user_id}/claims")
