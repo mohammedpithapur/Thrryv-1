@@ -20,6 +20,9 @@ from enum import Enum
 # Import AI Reputation Evaluator
 from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
 
+# Import Hierarchical Content Categorizer
+from content_categorizer import categorize_claim_content, ContentCategorizationResult
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
