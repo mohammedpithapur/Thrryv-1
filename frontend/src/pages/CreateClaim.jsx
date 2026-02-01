@@ -270,16 +270,50 @@ const CreateClaim = ({ user }) => {
               </p>
             </div>
 
-            {/* Domain Classification */}
+            {/* Domain Classification - Hierarchical */}
             {claimData && (
               <div className="bg-secondary p-4 rounded-sm mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Domain</span>
-                  <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">
-                    {claimData.domain}
-                  </span>
+                <div className="mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</span>
+                  <div className="mt-1">
+                    {claimData.category?.primary_path ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {claimData.category.primary_path.map((segment, idx) => (
+                          <span key={idx} className="flex items-center">
+                            <span className={`text-sm px-2 py-0.5 rounded ${
+                              idx === 0 
+                                ? 'bg-primary/10 text-primary font-medium' 
+                                : 'bg-secondary text-foreground'
+                            }`}>
+                              {segment}
+                            </span>
+                            {idx < claimData.category.primary_path.length - 1 && (
+                              <span className="mx-1 text-muted-foreground">→</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">
+                        {claimData.domain}
+                      </span>
+                    )}
+                  </div>
+                  {claimData.category?.content_format && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Format:</span>
+                      <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded capitalize">
+                        {claimData.category.content_format.replace('_', ' ')}
+                      </span>
+                      {claimData.category.is_informal && (
+                        <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded">
+                          Informal
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-3 border-t border-border">
                   <span className="text-sm font-medium">Initial Assessment</span>
                   <span className={`text-sm px-3 py-1 rounded-full font-medium ${
                     claimData.truth_label === 'True' || claimData.truth_label === 'Likely True'
