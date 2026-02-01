@@ -111,6 +111,33 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
     toast.success(darkMode ? 'Light mode enabled' : 'Dark mode enabled');
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== 'Delete Account') {
+      toast.error('Please type "Delete Account" exactly to confirm');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API}/users/account?confirmation=${encodeURIComponent(deleteConfirmation)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast.success('Account deleted successfully');
+      localStorage.removeItem('token');
+      if (onLogout) {
+        onLogout();
+      }
+      navigate('/');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to delete account');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   return (
     <div data-testid="profile-settings-page" className="max-w-4xl mx-auto px-6 py-8">
       <h1 className="playfair text-4xl font-bold mb-8">Profile Settings</h1>
