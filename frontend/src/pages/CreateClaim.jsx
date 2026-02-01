@@ -201,6 +201,20 @@ const CreateClaim = ({ user }) => {
           </p>
         </div>
 
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-sm mb-6">
+          <div className="flex items-start gap-3">
+            <Sparkles size={20} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">AI Reputation Evaluator</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Your post will be evaluated for clarity, originality, relevance, effort, and evidentiary value.
+                High-quality contributions earn a reputation boost (+5 to +15 points). Low-value posts receive
+                no penalty. This is separate from community verification.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <button
           type="submit"
           data-testid="submit-claim-btn"
