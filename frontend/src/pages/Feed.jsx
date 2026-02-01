@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const Feed = () => {
+const Feed = ({ user }) => {
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,17 +28,19 @@ const Feed = () => {
       });
   };
 
+  const handleDeleteClaim = (claimId) => {
+    setClaims(prev => prev.filter(c => c.id !== claimId));
+  };
+
   const getFilteredClaims = () => {
     if (activeTab === 'recent') {
       return claims;
     } else if (activeTab === 'debated') {
-      // Debated: claims with 3+ annotations and mixed evidence or contradicting annotations
       return claims.filter(claim => 
         claim.annotation_count >= 3 && 
         (claim.truth_label === 'Mixed Evidence' || claim.credibility_score >= 30 && claim.credibility_score <= 70)
       );
     } else if (activeTab === 'uncertain') {
-      // Uncertain: claims with uncertain label or low annotation count
       return claims.filter(claim => 
         claim.truth_label === 'Uncertain' || claim.annotation_count < 3
       );
@@ -65,21 +67,21 @@ const Feed = () => {
   }
 
   return (
-    <div data-testid="feed-page" className="max-w-7xl mx-auto px-6 py-8">
+    <div data-testid="feed-page" className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       <div className="mb-8">
-        <h1 className="playfair text-4xl font-bold tracking-tight mb-2">Claims Feed</h1>
-        <p className="text-muted-foreground">
+        <h1 className="playfair text-3xl md:text-4xl font-bold tracking-tight mb-2">Claims Feed</h1>
+        <p className="text-muted-foreground text-sm md:text-base">
           Evidence-based fact-checking platform. Every claim is immutable and verified by the community.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border mb-8">
-        <div className="flex gap-8">
+      <div className="border-b border-border mb-8 overflow-x-auto">
+        <div className="flex gap-4 md:gap-8 min-w-max">
           <button
             data-testid="tab-recent"
             onClick={() => setActiveTab('recent')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 ${
+            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               activeTab === 'recent'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -91,7 +93,7 @@ const Feed = () => {
           <button
             data-testid="tab-debated"
             onClick={() => setActiveTab('debated')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 ${
+            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               activeTab === 'debated'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -105,7 +107,7 @@ const Feed = () => {
           <button
             data-testid="tab-uncertain"
             onClick={() => setActiveTab('uncertain')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 ${
+            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               activeTab === 'uncertain'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -128,9 +130,14 @@ const Feed = () => {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {filteredClaims.map((claim) => (
-            <ClaimCard key={claim.id} claim={claim} />
+            <ClaimCard 
+              key={claim.id} 
+              claim={claim} 
+              currentUser={user}
+              onDelete={handleDeleteClaim}
+            />
           ))}
         </div>
       )}
