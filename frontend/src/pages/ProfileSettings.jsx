@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import UserAvatar from '../components/UserAvatar';
 import { useTheme } from '../context/ThemeContext';
-import { Camera, Moon, Sun, AlertTriangle } from 'lucide-react';
+import { Camera, Moon, Sun, AlertTriangle, Check, X, Loader2, Save } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -13,19 +13,60 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
   const navigate = useNavigate();
   const { darkMode, toggleDarkMode } = useTheme();
   const [username, setUsername] = useState(user?.username || '');
+  const [bio, setBio] = useState(user?.bio || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [savingBio, setSavingBio] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleting, setDeleting] = useState(false);
+  
+  // Username availability state
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
+  const [usernameSuggestions, setUsernameSuggestions] = useState([]);
 
   if (!user) {
     navigate('/login');
     return null;
   }
+
+  // Check username availability with debounce
+  useEffect(() => {
+    if (username === user?.username) {
+      setUsernameAvailable(null);
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameAvailable(null);
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setCheckingUsername(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${API}/users/check-username/${encodeURIComponent(username)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUsernameAvailable(response.data.available);
+        setUsernameSuggestions(response.data.suggestions || []);
+      } catch (err) {
+        console.error('Failed to check username');
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [username, user?.username]);
 
   const handleProfilePictureUpload = async (e) => {
     const file = e.target.files[0];
@@ -55,7 +96,6 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       });
 
       toast.success('Profile picture updated!');
-      // Force reload to show new picture
       window.location.reload();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to upload');
@@ -64,11 +104,88 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
     }
   };
 
-  const handleSaveSettings = async (e) => {
+  const handleSaveUsername = async () => {
+    if (username === user?.username) {
+      toast.info('No changes to save');
+      return;
+    }
+
+    if (username.length < 3) {
+      toast.error('Username must be at least 3 characters');
+      return;
+    }
+
+    if (!usernameAvailable) {
+      toast.error('Please choose an available username');
+      return;
+    }
+
+    setSavingUsername(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.patch(
+        `${API}/users/settings`,
+        { username },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success('Username updated successfully!');
+      if (onUserUpdate && response.data.user) {
+        onUserUpdate({ ...user, username: response.data.user.username });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update username');
+    } finally {
+      setSavingUsername(false);
+    }
+  };
+
+  const handleSaveBio = async () => {
+    if (bio === (user?.bio || '')) {
+      toast.info('No changes to save');
+      return;
+    }
+
+    if (bio.length > 60) {
+      toast.error('Bio must be 60 characters or less');
+      return;
+    }
+
+    setSavingBio(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.patch(
+        `${API}/users/settings`,
+        { bio },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success('Bio updated successfully!');
+      if (onUserUpdate && response.data.user) {
+        onUserUpdate({ ...user, bio: response.data.user.bio });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update bio');
+    } finally {
+      setSavingBio(false);
+    }
+  };
+
+  const handleSavePassword = async (e) => {
     e.preventDefault();
 
-    if (newPassword && newPassword !== confirmPassword) {
+    if (!currentPassword || !newPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
       toast.error('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
@@ -78,29 +195,18 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       await axios.patch(
         `${API}/users/settings`,
         {
-          username: username !== user.username ? username : null,
-          current_password: currentPassword || null,
-          new_password: newPassword || null
+          current_password: currentPassword,
+          new_password: newPassword
         },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      toast.success('Settings updated successfully!');
+      toast.success('Password updated successfully!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      
-      // Update user data
-      if (onUserUpdate) {
-        const response = await axios.get(`${API}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        onUserUpdate(response.data);
-      }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update settings');
+      toast.error(err.response?.data?.detail || 'Failed to update password');
     } finally {
       setSaving(false);
     }
@@ -139,115 +245,206 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
   };
 
   return (
-    <div data-testid="profile-settings-page" className="max-w-4xl mx-auto px-6 py-8">
-      <h1 className="playfair text-4xl font-bold mb-8">Profile Settings</h1>
+    <div data-testid="profile-settings-page" className="max-w-3xl mx-auto px-4 md:px-6 py-8 pb-24">
+      <h1 className="playfair text-3xl md:text-4xl font-bold tracking-tight mb-8">Profile Settings</h1>
 
-      {/* Profile Picture Section */}
-      <div className="bg-card border border-border p-8 rounded-sm mb-6">
-        <h2 className="text-xl font-semibold mb-6">Profile Picture</h2>
-        <div className="flex items-center gap-6">
-          <div className="relative group cursor-pointer" onClick={() => document.getElementById('profile-pic-input').click()}>
+      {/* Profile Picture & Bio Section */}
+      <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
+        <h2 className="text-xl font-semibold mb-6">Profile Picture & Bio</h2>
+        
+        <div className="flex flex-col md:flex-row items-start gap-6 mb-6">
+          <div className="relative">
             <UserAvatar user={user} size="xl" />
-            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <Camera size={32} className="text-white" />
-            </div>
-            {uploading && (
-              <div className="absolute inset-0 bg-black/70 rounded-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-              </div>
-            )}
+            <label className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full cursor-pointer hover:bg-primary/90 transition-colors">
+              <Camera size={18} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureUpload}
+                disabled={uploading}
+                className="hidden"
+              />
+            </label>
           </div>
-          <div>
-            <h3 className="font-medium mb-2">{user.username}</h3>
-            <p className="text-sm text-muted-foreground mb-3">
-              Click on your profile picture to change it
+          <div className="flex-1">
+            <p className="text-sm text-muted-foreground mb-2">
+              Click the camera icon to upload a new profile picture
             </p>
-            <input
-              type="file"
-              id="profile-pic-input"
-              accept="image/*"
-              onChange={handleProfilePictureUpload}
-              className="hidden"
+            <p className="text-xs text-muted-foreground">
+              Supported formats: JPG, PNG, GIF. Max size: 5MB
+            </p>
+          </div>
+        </div>
+
+        {/* Bio Field */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium">Bio</label>
+          <div className="relative">
+            <textarea
+              data-testid="bio-input"
+              value={bio}
+              onChange={(e) => setBio(e.target.value.slice(0, 60))}
+              placeholder="Describe yourself in 60 characters..."
+              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background resize-none"
+              rows="2"
+              maxLength={60}
             />
+            <span className={`absolute bottom-2 right-2 text-xs ${bio.length >= 55 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+              {bio.length}/60
+            </span>
+          </div>
+          <div className="flex justify-end">
             <button
-              onClick={() => document.getElementById('profile-pic-input').click()}
-              disabled={uploading}
-              className="px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-sm text-sm font-medium disabled:opacity-50"
+              onClick={handleSaveBio}
+              disabled={savingBio || bio === (user?.bio || '')}
+              data-testid="save-bio-btn"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {uploading ? 'Uploading...' : 'Change Picture'}
+              {savingBio ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save Bio
             </button>
           </div>
         </div>
       </div>
 
-      {/* Account Settings */}
-      <form onSubmit={handleSaveSettings} className="bg-card border border-border p-8 rounded-sm mb-6">
-        <h2 className="text-xl font-semibold mb-6">Account Settings</h2>
+      {/* Username Section */}
+      <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
+        <h2 className="text-xl font-semibold mb-6">Username</h2>
+        
+        <div className="space-y-3">
+          <label className="block text-sm font-medium">Display Name</label>
+          <div className="relative">
+            <input
+              type="text"
+              data-testid="username-input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              className={`w-full px-4 py-3 border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background pr-12 ${
+                usernameAvailable === false ? 'border-red-500' : 
+                usernameAvailable === true ? 'border-green-500' : 'border-border'
+              }`}
+              placeholder="your_username"
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              {checkingUsername && <Loader2 size={20} className="animate-spin text-muted-foreground" />}
+              {!checkingUsername && usernameAvailable === true && <Check size={20} className="text-green-500" />}
+              {!checkingUsername && usernameAvailable === false && <X size={20} className="text-red-500" />}
+            </div>
+          </div>
+          
+          {/* Username availability message */}
+          {usernameAvailable === false && (
+            <div className="space-y-2">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                This username is not available.
+              </p>
+              {usernameSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-muted-foreground">Try:</span>
+                  {usernameSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => setUsername(suggestion)}
+                      className="text-xs px-2 py-1 bg-secondary hover:bg-secondary/80 rounded-sm transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {usernameAvailable === true && username !== user?.username && (
+            <p className="text-sm text-green-600 dark:text-green-400">
+              This username is available!
+            </p>
+          )}
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Username</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Your username"
-          />
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={handleSaveUsername}
+              disabled={savingUsername || username === user?.username || usernameAvailable === false || username.length < 3}
+              data-testid="save-username-btn"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingUsername ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save Changes
+            </button>
+          </div>
         </div>
+      </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Current Password</label>
+      {/* Email Display (Read-only) */}
+      <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
+        <h2 className="text-xl font-semibold mb-6">Email Address</h2>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Your Email (Private)</label>
           <input
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Enter current password to change it"
+            type="email"
+            value={user?.email || ''}
+            disabled
+            className="w-full px-4 py-3 border border-border rounded-sm bg-secondary text-muted-foreground cursor-not-allowed"
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Leave blank if you don't want to change your password
+          <p className="text-xs text-muted-foreground">
+            Your email address is private and will never be shown to other users.
           </p>
         </div>
+      </div>
 
-        {currentPassword && (
-          <>
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Enter new password"
-                minLength={6}
-              />
-            </div>
+      {/* Password Section */}
+      <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
+        <h2 className="text-xl font-semibold mb-6">Change Password</h2>
+        
+        <form onSubmit={handleSavePassword} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Current Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+              placeholder="Enter current password"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">New Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+              placeholder="Enter new password"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+              placeholder="Confirm new password"
+            />
+          </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Confirm new password"
-                minLength={6}
-              />
-            </div>
-          </>
-        )}
-
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
-      </form>
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={saving || !currentPassword || !newPassword || !confirmPassword}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Update Password
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Appearance Settings */}
-      <div className="bg-card border border-border p-8 rounded-sm">
+      <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
         <h2 className="text-xl font-semibold mb-6">Appearance</h2>
         
         <div className="flex items-center justify-between">
@@ -280,7 +477,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       </div>
 
       {/* Danger Zone - Delete Account */}
-      <div className="bg-card border border-red-200 dark:border-red-900 p-8 rounded-sm">
+      <div className="bg-card border border-red-200 dark:border-red-900 p-6 md:p-8 rounded-sm">
         <h2 className="text-xl font-semibold mb-2 text-red-600 dark:text-red-400">Danger Zone</h2>
         <p className="text-sm text-muted-foreground mb-6">
           Irreversible actions that affect your account permanently.
@@ -306,7 +503,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       {/* Delete Account Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-sm p-8 max-w-md w-full">
+          <div className="bg-card border border-border rounded-sm p-6 md:p-8 max-w-md w-full">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
                 <AlertTriangle size={24} className="text-red-600 dark:text-red-400" />
