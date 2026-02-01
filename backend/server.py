@@ -591,6 +591,7 @@ async def get_claims(limit: int = 20, offset: int = 0):
             "media": media_list,
             "truth_label": claim['truth_label'],
             "credibility_score": claim['credibility_score'],
+            "baseline_evaluation": claim.get('baseline_evaluation'),
             "annotation_count": len(annotations),
             "created_at": claim['created_at']
         })
