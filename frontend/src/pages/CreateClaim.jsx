@@ -208,8 +208,8 @@ const CreateClaim = ({ user }) => {
 
         <div className="bg-secondary p-4 rounded-sm mb-6">
           <p className="text-sm text-muted-foreground">
-            <strong>Note:</strong> Claims are immutable. Once posted, they cannot be edited or deleted.
-            The community will add annotations to verify or refute your claim.
+            <strong>Note:</strong> Claims can be deleted from your profile, but doing so will reverse any reputation gained.
+            The community will add annotations to verify or refute your claim over time.
           </p>
         </div>
 
