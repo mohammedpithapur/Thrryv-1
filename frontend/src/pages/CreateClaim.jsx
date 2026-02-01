@@ -291,13 +291,23 @@ const CreateClaim = ({ user }) => {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center mb-4">
+            <p className="text-xs text-muted-foreground text-center mb-6">
               {evaluationResult.evaluation_summary}
             </p>
 
-            <p className="text-xs text-center text-muted-foreground">
-              Redirecting to your claim...
-            </p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm p-4 mb-6">
+              <p className="text-xs text-blue-800 dark:text-blue-200">
+                <strong>Why did I earn this boost?</strong> Your content was evaluated for clarity, originality, relevance, effort, and evidentiary value. Posts that add meaningful information to the platform earn reputation rewards. This is separate from community verification, which happens over time through annotations.
+              </p>
+            </div>
+
+            <button
+              onClick={handleDismissEvaluation}
+              data-testid="dismiss-evaluation-btn"
+              className="w-full px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium"
+            >
+              View My Claim
+            </button>
           </div>
         </div>
       )}
