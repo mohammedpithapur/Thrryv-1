@@ -207,9 +207,74 @@ const CreateClaim = ({ user }) => {
           disabled={submitting || wordCount > 250 || !text.trim()}
           className="w-full px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? 'Creating...' : 'Post Claim'}
+          {submitting ? 'Creating & Evaluating...' : 'Post Claim'}
         </button>
       </form>
+
+      {/* AI Evaluation Result Modal */}
+      {showEvaluation && evaluationResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-sm p-8 max-w-lg w-full animate-in fade-in zoom-in duration-300">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                <Sparkles size={32} className="text-green-600 dark:text-green-400" />
+              </div>
+              <h2 className="playfair text-2xl font-bold mb-2">Content Evaluated!</h2>
+              <p className="text-muted-foreground">Your contribution adds value to the platform</p>
+            </div>
+
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-sm p-4 mb-6">
+              <div className="flex items-center justify-center gap-3">
+                <TrendingUp size={24} className="text-green-600 dark:text-green-400" />
+                <span className="text-3xl font-bold text-green-600 dark:text-green-400">
+                  +{evaluationResult.reputation_boost?.toFixed(1)}
+                </span>
+                <span className="text-green-700 dark:text-green-300">Reputation</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <h3 className="font-semibold text-sm">Content Quality Scores</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Clarity</span>
+                  <span className="font-medium">{evaluationResult.clarity_score}/100</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Originality</span>
+                  <span className="font-medium">{evaluationResult.originality_score}/100</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Relevance</span>
+                  <span className="font-medium">{evaluationResult.relevance_score}/100</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Effort</span>
+                  <span className="font-medium">{evaluationResult.effort_score}/100</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Evidentiary Value</span>
+                  <span className="font-medium">{evaluationResult.evidentiary_value_score}/100</span>
+                </div>
+                {evaluationResult.media_value_score !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Media Value</span>
+                    <span className="font-medium">{evaluationResult.media_value_score}/100</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center mb-4">
+              {evaluationResult.evaluation_summary}
+            </p>
+
+            <p className="text-xs text-center text-muted-foreground">
+              Redirecting to your claim...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
