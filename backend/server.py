@@ -721,6 +721,7 @@ async def get_claims(limit: int = 20, offset: int = 0):
             "truth_label": claim['truth_label'],
             "credibility_score": claim['credibility_score'],
             "baseline_evaluation": claim.get('baseline_evaluation'),
+            "category": claim.get('category'),
             "annotation_count": len(annotations),
             "created_at": claim['created_at']
         })
@@ -746,6 +747,7 @@ async def get_claim(claim_id: str):
         "id": claim['id'],
         "text": claim['text'],
         "domain": claim['domain'],
+        "category": claim.get('category'),
         "confidence_level": claim['confidence_level'],
         "author": {
             "id": author['id'],
