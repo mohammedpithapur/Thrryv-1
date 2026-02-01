@@ -418,20 +418,109 @@ async def ai_fact_check_claim(claim_text: str) -> tuple[str, float]:
     return "Uncertain", 50.0
 
 # AI Domain Classification
-async def classify_claim_domain(claim_text: str) -> str:
-    """Use AI to classify the claim into a domain"""
+async def classify_claim_domain(claim_text: str, media_files: list = None) -> str:
+    """Use GPT-5.2 to intelligently classify the claim into a domain"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    import json
     
-    # Check if we have OpenAI or other LLM API key
-    # For now, use a simple keyword-based classification as fallback
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    
+    if not api_key:
+        # Fallback to keyword-based if no API key
+        return await classify_claim_domain_fallback(claim_text)
+    
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"domain-{uuid.uuid4().hex[:8]}",
+            system_message="""You are an expert content classifier for Thrryv, a fact-checking platform.
+Your job is to analyze content (text and media) and classify it into the most appropriate domain.
+
+Available domains:
+- Science: Scientific research, discoveries, experiments, studies, natural phenomena
+- Health: Medical topics, wellness, diseases, treatments, mental health, fitness
+- Technology: Tech innovations, software, AI, gadgets, digital trends, computing
+- Politics: Government, elections, policies, political figures, legislation
+- Economics: Finance, markets, trade, business, economic trends, wealth
+- Environment: Climate, ecology, conservation, sustainability, pollution
+- History: Historical events, ancient civilizations, past figures, heritage
+- Society: Social issues, culture, demographics, community topics
+- Sports: Athletic events, sports figures, competitions, fitness activities
+- Entertainment: Movies, music, celebrities, arts, media, gaming
+- Education: Learning, schools, academic topics, research institutions
+- Geography: Places, countries, cities, landmarks, travel
+- Food: Cuisine, nutrition, cooking, restaurants, dietary topics
+- Law: Legal matters, justice, crime, regulations, court cases
+- Religion: Faith, spirituality, religious practices, theology
+
+Analyze the content carefully. Consider:
+1. The main subject matter
+2. Key entities mentioned
+3. The context and intent
+4. Any media content that provides additional context
+
+Respond ONLY with a JSON object:
+{"domain": "<chosen domain>", "confidence": <0.0-1.0>, "reasoning": "<brief explanation>"}"""
+        ).with_model("openai", "gpt-5.2")
+        
+        prompt = f"Classify this content into the most appropriate domain:\n\nTEXT: {claim_text}"
+        
+        # Add media analysis if available
+        message_content = UserMessage(text=prompt)
+        if media_files and len(media_files) > 0:
+            try:
+                import base64
+                first_media = media_files[0]
+                media_base64 = base64.b64encode(first_media['data']).decode('utf-8')
+                message_content = UserMessage(
+                    text=prompt + "\n\n[An image/video is attached - analyze it for context]",
+                    file_contents=[ImageContent(image_base64=media_base64)]
+                )
+            except Exception as e:
+                logging.warning(f"Could not include media in classification: {e}")
+        
+        response = await chat.send_message(message_content)
+        
+        # Parse response
+        response_text = response.strip()
+        if response_text.startswith('```'):
+            response_text = response_text.split('```')[1]
+            if response_text.startswith('json'):
+                response_text = response_text[4:]
+        
+        result = json.loads(response_text)
+        domain = result.get('domain', 'General')
+        
+        # Validate domain is in our list
+        valid_domains = ["Science", "Health", "Technology", "Politics", "Economics", 
+                        "Environment", "History", "Society", "Sports", "Entertainment",
+                        "Education", "Geography", "Food", "Law", "Religion", "General"]
+        
+        if domain not in valid_domains:
+            domain = "General"
+            
+        logging.info(f"AI Domain Classification: {domain} (confidence: {result.get('confidence', 'N/A')}, reason: {result.get('reasoning', 'N/A')})")
+        return domain
+        
+    except Exception as e:
+        logging.error(f"AI domain classification failed: {e}")
+        return await classify_claim_domain_fallback(claim_text)
+
+
+async def classify_claim_domain_fallback(claim_text: str) -> str:
+    """Fallback keyword-based classification"""
     domains_keywords = {
-        "Science": ["scientific", "research", "study", "evidence", "experiment", "data", "scientists", "climate", "biology", "physics"],
-        "Health": ["health", "medical", "disease", "vaccine", "treatment", "medicine", "exercise", "wellness", "mental", "physical"],
-        "Technology": ["technology", "tech", "software", "digital", "computer", "internet", "AI", "electric", "innovation", "device"],
-        "Politics": ["political", "government", "election", "policy", "law", "president", "congress", "vote", "democracy"],
-        "Economics": ["economic", "economy", "financial", "market", "trade", "poverty", "wealth", "GDP", "inflation", "business"],
-        "Environment": ["environment", "climate", "pollution", "renewable", "energy", "nature", "conservation", "sustainability"],
-        "History": ["historical", "history", "ancient", "past", "century", "war", "empire", "civilization", "pyramids"],
-        "Society": ["social", "society", "culture", "community", "people", "demographic", "population"]
+        "Science": ["scientific", "research", "study", "evidence", "experiment", "data", "scientists", "biology", "physics", "chemistry", "nasa", "rover", "mars", "space"],
+        "Health": ["health", "medical", "disease", "vaccine", "treatment", "medicine", "exercise", "wellness", "mental", "physical", "doctor", "hospital"],
+        "Technology": ["technology", "tech", "software", "digital", "computer", "internet", "AI", "electric", "innovation", "device", "app", "smartphone"],
+        "Politics": ["political", "government", "election", "policy", "law", "president", "congress", "vote", "democracy", "parliament", "senator"],
+        "Economics": ["economic", "economy", "financial", "market", "trade", "poverty", "wealth", "GDP", "inflation", "business", "stock", "investment"],
+        "Environment": ["environment", "climate", "pollution", "renewable", "energy", "nature", "conservation", "sustainability", "carbon", "emissions"],
+        "History": ["historical", "history", "ancient", "past", "century", "war", "empire", "civilization", "pyramids", "medieval", "dynasty"],
+        "Society": ["social", "society", "culture", "community", "people", "demographic", "population", "equality", "rights"],
+        "Sports": ["sport", "football", "basketball", "soccer", "olympics", "athlete", "team", "championship", "match", "player"],
+        "Entertainment": ["movie", "film", "music", "celebrity", "actor", "singer", "concert", "album", "game", "netflix"],
+        "Geography": ["country", "city", "continent", "river", "mountain", "ocean", "india", "china", "america", "europe", "kolkata", "delhi"]
     }
     
     claim_lower = claim_text.lower()
@@ -445,7 +534,7 @@ async def classify_claim_domain(claim_text: str) -> str:
     if domain_scores:
         return max(domain_scores, key=domain_scores.get)
     
-    return "Other"
+    return "General"
 
 # Claims
 @api_router.post("/claims")
