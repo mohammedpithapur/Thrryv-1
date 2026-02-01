@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import TruthBadge from './TruthBadge';
 import UserAvatar from './UserAvatar';
-import { MessageSquare, TrendingUp, Trash2, MoreVertical } from 'lucide-react';
+import { MessageSquare, TrendingUp, Trash2, MoreVertical, ChevronRight } from 'lucide-react';
 
 const ClaimCard = ({ claim, currentUser, onDelete }) => {
   const navigate = useNavigate();
@@ -18,6 +18,12 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
   
   const reputationBoost = claim.baseline_evaluation?.reputation_boost || 0;
   const isOwner = currentUser && claim.author.id === currentUser.id;
+  
+  // Get category display
+  const categoryPath = claim.category?.primary_path || [claim.domain];
+  const displayCategory = categoryPath.length > 2 
+    ? [categoryPath[0], '...', categoryPath[categoryPath.length - 1]]
+    : categoryPath;
 
   const handleDelete = async (e) => {
     e.stopPropagation();
@@ -83,20 +89,26 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
 
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-muted-foreground font-medium">{claim.domain}</span>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span className="text-xs text-muted-foreground">
+          {/* Hierarchical Category Display */}
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
+            {displayCategory.map((segment, idx) => (
+              <span key={idx} className="flex items-center">
+                <span className={`text-xs ${idx === 0 ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+                  {segment}
+                </span>
+                {idx < displayCategory.length - 1 && (
+                  <ChevronRight size={12} className="mx-0.5 text-muted-foreground" />
+                )}
+              </span>
+            ))}
+            <span className="text-xs text-muted-foreground ml-2">
               {new Date(claim.created_at).toLocaleDateString()}
             </span>
             {reputationBoost > 0 && (
-              <>
-                <span className="text-xs text-muted-foreground">•</span>
-                <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                  <TrendingUp size={12} />
-                  +{reputationBoost.toFixed(1)}
-                </span>
-              </>
+              <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium ml-2">
+                <TrendingUp size={12} />
+                +{reputationBoost.toFixed(1)}
+              </span>
             )}
           </div>
           <h3 className="playfair text-lg font-semibold tracking-tight leading-snug line-clamp-3">
