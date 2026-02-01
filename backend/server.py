@@ -1002,6 +1002,7 @@ async def get_profile_picture(user_id: str):
 @api_router.patch("/users/settings")
 async def update_user_settings(
     username: Optional[str] = None,
+    bio: Optional[str] = None,
     current_password: Optional[str] = None,
     new_password: Optional[str] = None,
     current_user = Depends(get_current_user)
@@ -1016,6 +1017,12 @@ async def update_user_settings(
             raise HTTPException(status_code=400, detail="Username already taken")
         updates["username"] = username
     
+    # Update bio (max 60 characters)
+    if bio is not None:
+        if len(bio) > 60:
+            raise HTTPException(status_code=400, detail="Bio must be 60 characters or less")
+        updates["bio"] = bio.strip()
+    
     # Update password
     if current_password and new_password:
         if not verify_password(current_password, current_user['password']):
@@ -1027,9 +1034,59 @@ async def update_user_settings(
             {"id": current_user['id']},
             {"$set": updates}
         )
-        return {"message": "Settings updated successfully"}
+        
+        # Return updated user data
+        updated_user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password": 0})
+        return {
+            "message": "Settings updated successfully",
+            "user": {
+                "id": updated_user['id'],
+                "username": updated_user['username'],
+                "email": updated_user['email'],
+                "bio": updated_user.get('bio', ''),
+                "reputation_score": updated_user['reputation_score']
+            }
+        }
     
     return {"message": "No changes made"}
+
+# Check username availability and get suggestions
+@api_router.get("/users/check-username/{username}")
+async def check_username_availability(username: str, current_user = Depends(get_current_user)):
+    # Check if username is same as current user's
+    if username.lower() == current_user['username'].lower():
+        return {"available": True, "suggestions": []}
+    
+    # Check if username is taken
+    existing = await db.users.find_one({"username": {"$regex": f"^{username}$", "$options": "i"}}, {"_id": 0})
+    
+    if not existing:
+        return {"available": True, "suggestions": []}
+    
+    # Generate intelligent suggestions
+    suggestions = []
+    base_username = username.lower()
+    
+    # Add numbers
+    for i in range(1, 100):
+        suggestion = f"{base_username}{i}"
+        exists = await db.users.find_one({"username": {"$regex": f"^{suggestion}$", "$options": "i"}}, {"_id": 0})
+        if not exists:
+            suggestions.append(suggestion)
+            if len(suggestions) >= 3:
+                break
+    
+    # Add underscores
+    if len(suggestions) < 5:
+        for suffix in ['_', '__', '_x', '_v2', '_real']:
+            suggestion = f"{base_username}{suffix}"
+            exists = await db.users.find_one({"username": {"$regex": f"^{suggestion}$", "$options": "i"}}, {"_id": 0})
+            if not exists:
+                suggestions.append(suggestion)
+                if len(suggestions) >= 5:
+                    break
+    
+    return {"available": False, "suggestions": suggestions[:5]}
 
 # User profile
 @api_router.get("/users/{user_id}")
