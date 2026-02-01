@@ -569,8 +569,43 @@ async def create_claim(
                 except Exception as e:
                     logging.warning(f"Could not read media file for evaluation: {e}")
     
-    # AI-classify the domain (pass media for better classification)
-    ai_domain = await classify_claim_domain(claim_data.text, media_files_for_eval)
+    # Hierarchical content categorization
+    category_result = None
+    try:
+        cat_result = await categorize_claim_content(claim_data.text, media_files_for_eval)
+        category_result = {
+            "primary_path": cat_result.primary_category.path,
+            "primary_full": cat_result.primary_category.full_path,
+            "primary_confidence": cat_result.primary_category.confidence,
+            "primary_reasoning": cat_result.primary_category.reasoning,
+            "secondary_categories": [
+                {
+                    "path": sec.path,
+                    "full_path": sec.full_path,
+                    "confidence": sec.confidence,
+                    "reasoning": sec.reasoning
+                }
+                for sec in cat_result.secondary_categories
+            ],
+            "content_format": cat_result.content_format,
+            "is_informal": cat_result.is_informal,
+            "cultural_context": cat_result.cultural_context
+        }
+        ai_domain = cat_result.primary_category.full_path
+        primary_domain = cat_result.primary_category.primary_domain
+        
+        logging.info(f"Hierarchical Category: {ai_domain}")
+    except Exception as e:
+        logging.error(f"Hierarchical categorization failed: {e}")
+        # Fallback to simple domain
+        ai_domain = await classify_claim_domain(claim_data.text, media_files_for_eval)
+        primary_domain = ai_domain
+        category_result = {
+            "primary_path": [ai_domain],
+            "primary_full": ai_domain,
+            "primary_confidence": 0.5,
+            "primary_reasoning": "Fallback classification"
+        }
     
     # AI-fact check the claim
     ai_truth_label, ai_confidence = await ai_fact_check_claim(claim_data.text)
@@ -582,7 +617,7 @@ async def create_claim(
     try:
         eval_result = await evaluate_claim_for_reputation(
             text=claim_data.text,
-            domain=ai_domain,
+            domain=primary_domain if 'primary_domain' in dir() else ai_domain,
             media_files=media_files_for_eval
         )
         
