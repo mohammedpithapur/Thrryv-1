@@ -897,6 +897,203 @@ async def get_user_profile(user_id: str):
         "recent_annotations": annotations
     }
 
+# Get all user claims
+@api_router.get("/users/{user_id}/claims")
+async def get_user_claims(user_id: str, skip: int = 0, limit: int = 50):
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    
+    result = []
+    for claim in claims:
+        media_list = []
+        for media_id in claim.get('media_ids', []):
+            media = await db.media.find_one({"id": media_id}, {"_id": 0})
+            if media:
+                media_list.append(media)
+        
+        result.append({
+            "id": claim['id'],
+            "text": claim['text'],
+            "domain": claim['domain'],
+            "truth_label": claim['truth_label'],
+            "credibility_score": claim['credibility_score'],
+            "media": media_list,
+            "baseline_evaluation": claim.get('baseline_evaluation'),
+            "created_at": claim['created_at']
+        })
+    
+    return result
+
+# Get all user annotations
+@api_router.get("/users/{user_id}/annotations")
+async def get_user_annotations(user_id: str, skip: int = 0, limit: int = 50):
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    annotations = await db.annotations.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    
+    result = []
+    for ann in annotations:
+        # Get claim info
+        claim = await db.claims.find_one({"id": ann['claim_id']}, {"_id": 0, "text": 1, "id": 1})
+        result.append({
+            "id": ann['id'],
+            "claim_id": ann['claim_id'],
+            "claim_preview": claim['text'][:100] + "..." if claim and len(claim.get('text', '')) > 100 else claim.get('text', '') if claim else '',
+            "text": ann['text'],
+            "annotation_type": ann['annotation_type'],
+            "helpful_votes": ann['helpful_votes'],
+            "not_helpful_votes": ann['not_helpful_votes'],
+            "created_at": ann['created_at']
+        })
+    
+    return result
+
+# Delete claim (hard delete with reputation reversal)
+@api_router.delete("/claims/{claim_id}")
+async def delete_claim(
+    claim_id: str,
+    current_user = Depends(get_current_user)
+):
+    claim = await db.claims.find_one({"id": claim_id}, {"_id": 0})
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    # Check ownership
+    if claim['author_id'] != current_user['id']:
+        raise HTTPException(status_code=403, detail="You can only delete your own claims")
+    
+    # Reverse reputation boost if any
+    baseline_eval = claim.get('baseline_evaluation', {})
+    reputation_boost = baseline_eval.get('reputation_boost', 0)
+    
+    if reputation_boost > 0:
+        await db.users.update_one(
+            {"id": current_user['id']},
+            {"$inc": {"reputation_score": -reputation_boost}}
+        )
+    
+    # Delete associated annotations
+    await db.annotations.delete_many({"claim_id": claim_id})
+    
+    # Delete associated notifications
+    await db.notifications.delete_many({"claim_id": claim_id})
+    
+    # Delete the claim
+    await db.claims.delete_one({"id": claim_id})
+    
+    # Update user stats
+    await db.users.update_one(
+        {"id": current_user['id']},
+        {"$inc": {"contribution_stats.claims_posted": -1}}
+    )
+    
+    return {"message": "Claim deleted successfully", "reputation_reversed": reputation_boost}
+
+# Delete user account (hard delete)
+@api_router.delete("/users/account")
+async def delete_user_account(
+    confirmation: str,
+    current_user = Depends(get_current_user)
+):
+    if confirmation != "Delete Account":
+        raise HTTPException(status_code=400, detail="Please type 'Delete Account' to confirm deletion")
+    
+    user_id = current_user['id']
+    
+    # Get all user's claims to reverse reputation
+    claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).to_list(length=10000)
+    
+    total_reputation_reversed = 0
+    for claim in claims:
+        baseline_eval = claim.get('baseline_evaluation', {})
+        reputation_boost = baseline_eval.get('reputation_boost', 0)
+        total_reputation_reversed += reputation_boost
+        
+        # Delete annotations on this claim
+        await db.annotations.delete_many({"claim_id": claim['id']})
+    
+    # Delete all user's claims
+    await db.claims.delete_many({"author_id": user_id})
+    
+    # Delete all user's annotations
+    await db.annotations.delete_many({"author_id": user_id})
+    
+    # Delete all user's notifications
+    await db.notifications.delete_many({"user_id": user_id})
+    
+    # Delete the user
+    await db.users.delete_one({"id": user_id})
+    
+    return {"message": "Account deleted successfully"}
+
+# Notifications
+@api_router.get("/notifications")
+async def get_notifications(
+    current_user = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 50
+):
+    notifications = await db.notifications.find(
+        {"user_id": current_user['id']},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    
+    # Get unread count
+    unread_count = await db.notifications.count_documents({
+        "user_id": current_user['id'],
+        "read": False
+    })
+    
+    return {
+        "notifications": notifications,
+        "unread_count": unread_count
+    }
+
+# Mark notification as read
+@api_router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    current_user = Depends(get_current_user)
+):
+    result = await db.notifications.update_one(
+        {"id": notification_id, "user_id": current_user['id']},
+        {"$set": {"read": True}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification marked as read"}
+
+# Mark all notifications as read
+@api_router.patch("/notifications/read-all")
+async def mark_all_notifications_read(
+    current_user = Depends(get_current_user)
+):
+    await db.notifications.update_many(
+        {"user_id": current_user['id'], "read": False},
+        {"$set": {"read": True}}
+    )
+    
+    return {"message": "All notifications marked as read"}
+
+# Get unread notification count
+@api_router.get("/notifications/unread-count")
+async def get_unread_notification_count(
+    current_user = Depends(get_current_user)
+):
+    count = await db.notifications.count_documents({
+        "user_id": current_user['id'],
+        "read": False
+    })
+    
+    return {"unread_count": count}
+
 app.include_router(api_router)
 
 app.add_middleware(
