@@ -461,13 +461,61 @@ async def create_claim(
     # AI-fact check the claim
     ai_truth_label, ai_confidence = await ai_fact_check_claim(claim_data.text)
     
-    # Get media objects
+    # Get media objects and prepare for AI evaluation
     media_list = []
+    media_files_for_eval = []
+    
     if claim_data.media_ids:
         for media_id in claim_data.media_ids:
             media = await db.media.find_one({"id": media_id}, {"_id": 0})
             if media:
                 media_list.append(media)
+                # Read media file for AI evaluation
+                try:
+                    file_path = media.get('file_path')
+                    if file_path and Path(file_path).exists():
+                        with open(file_path, 'rb') as f:
+                            media_data = f.read()
+                        media_files_for_eval.append({
+                            'data': media_data,
+                            'type': media.get('file_type', 'image/jpeg')
+                        })
+                except Exception as e:
+                    logging.warning(f"Could not read media file for evaluation: {e}")
+    
+    # Run AI Baseline Reputation Evaluation
+    reputation_boost = 0.0
+    evaluation_result = None
+    
+    try:
+        eval_result = await evaluate_claim_for_reputation(
+            text=claim_data.text,
+            domain=ai_domain,
+            media_files=media_files_for_eval
+        )
+        
+        reputation_boost = eval_result.reputation_boost
+        evaluation_result = {
+            "reputation_boost": eval_result.reputation_boost,
+            "qualifies_for_boost": eval_result.qualifies_for_boost,
+            "clarity_score": eval_result.clarity_score,
+            "originality_score": eval_result.originality_score,
+            "relevance_score": eval_result.relevance_score,
+            "effort_score": eval_result.effort_score,
+            "evidentiary_value_score": eval_result.evidentiary_value_score,
+            "media_value_score": eval_result.media_value_score,
+            "content_type": eval_result.content_type.value,
+            "evaluation_summary": eval_result.evaluation_summary
+        }
+        
+        logging.info(f"AI Evaluation for claim {claim_id}: boost={reputation_boost}, qualifies={eval_result.qualifies_for_boost}")
+    except Exception as e:
+        logging.error(f"AI Reputation Evaluation failed: {e}")
+        evaluation_result = {
+            "reputation_boost": 0.0,
+            "qualifies_for_boost": False,
+            "evaluation_summary": "Evaluation temporarily unavailable"
+        }
     
     claim = {
         "id": claim_id,
@@ -479,16 +527,26 @@ async def create_claim(
         "truth_label": ai_truth_label,  # Use AI fact-check result
         "credibility_score": ai_confidence,  # Use AI confidence as initial score
         "ai_verified": True,  # Mark as AI-verified
+        "baseline_evaluation": evaluation_result,  # Store AI evaluation
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.claims.insert_one(claim)
     
-    # Update user stats
+    # Update user stats and apply reputation boost
+    update_ops = {"$inc": {"contribution_stats.claims_posted": 1}}
+    
+    if reputation_boost > 0:
+        update_ops["$inc"]["reputation_score"] = reputation_boost
+    
     await db.users.update_one(
         {"id": current_user['id']},
-        {"$inc": {"contribution_stats.claims_posted": 1}}
+        update_ops
     )
+    
+    # Get updated user reputation
+    updated_user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "reputation_score": 1})
+    new_reputation = updated_user.get('reputation_score', current_user['reputation_score'])
     
     return {
         "id": claim_id,
@@ -497,11 +555,12 @@ async def create_claim(
         "author": {
             "id": current_user['id'],
             "username": current_user['username'],
-            "reputation_score": current_user['reputation_score']
+            "reputation_score": new_reputation
         },
         "media": media_list,
         "truth_label": ai_truth_label,
-        "credibility_score": ai_confidence
+        "credibility_score": ai_confidence,
+        "baseline_evaluation": evaluation_result
     }
 
 @api_router.get("/claims")
