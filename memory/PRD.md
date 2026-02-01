@@ -213,12 +213,28 @@ CORS_ORIGINS=*
   - Provides confidence score and reasoning
   - No more "Other" fallback category
 
+- ✅ **Hierarchical Content Categorization System** (NEW)
+  - Multi-level taxonomy: Domain → Category → Subcategory → Specific Topic
+  - Example: "Entertainment & Media → Streaming Platforms → Netflix → Viewership Records"
+  - Multi-label support (primary + secondary categories)
+  - Handles informal content: memes, satire, jokes, cultural references
+  - Content format detection: factual_claim, meme, satire, opinion_piece, etc.
+  - Cultural context recognition
+  - Never defaults to "General" or "Other"
+  - 14 primary domains with extensive subcategories
+
 - ✅ **Congratulatory Modal with Clear Reasoning**
   - Shows for ALL claims after submission (not just high-quality)
-  - Displays AI-classified domain and truth label
+  - Displays full hierarchical category path with arrows
+  - Shows content format (meme, factual_claim, etc.)
   - Shows quality scores (Clarity, Originality, Relevance, Effort, Evidence Value)
   - Explains why reputation was/wasn't awarded
   - "OK, View My Claim" button to dismiss
+
+- ✅ **UI Text Updates**
+  - Removed "(+5 to +15 points)" from AI Reputation Evaluator description
+  - Removed "up to 30 seconds." from supporting media
+  - Removed "Optional" from Supporting Media label
 
 ## Backlog / Future Tasks
 
