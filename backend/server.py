@@ -17,6 +17,9 @@ import requests
 import io
 from enum import Enum
 
+# Import AI Reputation Evaluator
+from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
