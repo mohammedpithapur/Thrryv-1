@@ -206,6 +206,20 @@ CORS_ORIGINS=*
   - Exceeds limit warning
   - Submit button disabled when over limit
 
+- ✅ **Improved AI Domain Classification** (Updated)
+  - Uses GPT-5.2 for intelligent domain classification
+  - Analyzes text AND media content for context
+  - 15 domain categories: Science, Health, Technology, Politics, Economics, Environment, History, Society, Sports, Entertainment, Education, Geography, Food, Law, Religion
+  - Provides confidence score and reasoning
+  - No more "Other" fallback category
+
+- ✅ **Congratulatory Modal with Clear Reasoning**
+  - Shows for ALL claims after submission (not just high-quality)
+  - Displays AI-classified domain and truth label
+  - Shows quality scores (Clarity, Originality, Relevance, Effort, Evidence Value)
+  - Explains why reputation was/wasn't awarded
+  - "OK, View My Claim" button to dismiss
+
 ## Backlog / Future Tasks
 
 ### P1 - High Priority
