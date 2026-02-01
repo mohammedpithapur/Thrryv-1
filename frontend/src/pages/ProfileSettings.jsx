@@ -30,14 +30,11 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameSuggestions, setUsernameSuggestions] = useState([]);
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
-
   // Check username availability with debounce
   useEffect(() => {
-    if (username === user?.username) {
+    if (!user) return;
+    
+    if (username === user.username) {
       setUsernameAvailable(null);
       setUsernameSuggestions([]);
       return;
@@ -66,7 +63,12 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [username, user?.username]);
+  }, [username, user]);
+
+  if (!user) {
+    navigate('/login');
+    return null;
+  }
 
   const handleProfilePictureUpload = async (e) => {
     const file = e.target.files[0];
