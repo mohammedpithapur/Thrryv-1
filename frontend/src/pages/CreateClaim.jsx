@@ -219,7 +219,7 @@ const CreateClaim = ({ user }) => {
               <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">AI Reputation Evaluator</p>
               <p className="text-xs text-blue-700 dark:text-blue-300">
                 Your post will be evaluated for clarity, originality, relevance, effort, and evidentiary value.
-                High-quality contributions earn a reputation boost (+5 to +15 points). Low-value posts receive
+                High-quality contributions earn a reputation boost. Low-value posts receive
                 no penalty. This is separate from community verification.
               </p>
             </div>
