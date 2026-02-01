@@ -4,12 +4,12 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import UserAvatar from '../components/UserAvatar';
 import { useTheme } from '../context/ThemeContext';
-import { Camera, Moon, Sun } from 'lucide-react';
+import { Camera, Moon, Sun, AlertTriangle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const ProfileSettings = ({ user, onUserUpdate }) => {
+const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
   const navigate = useNavigate();
   const { darkMode, toggleDarkMode } = useTheme();
   const [username, setUsername] = useState(user?.username || '');
@@ -18,6 +18,9 @@ const ProfileSettings = ({ user, onUserUpdate }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   if (!user) {
     navigate('/login');
