@@ -76,8 +76,23 @@ const CreateClaim = ({ user }) => {
         }
       );
 
-      toast.success(`Claim created! AI classified as: ${response.data.domain} | Truth: ${response.data.truth_label}`);
-      navigate(`/claims/${response.data.id}`);
+      const evaluation = response.data.baseline_evaluation;
+      setEvaluationResult(evaluation);
+      
+      if (evaluation && evaluation.qualifies_for_boost && evaluation.reputation_boost > 0) {
+        setShowEvaluation(true);
+        toast.success(
+          `Claim created! +${evaluation.reputation_boost.toFixed(1)} reputation boost!`,
+          { duration: 5000 }
+        );
+        // Wait to show evaluation before navigating
+        setTimeout(() => {
+          navigate(`/claims/${response.data.id}`);
+        }, 3000);
+      } else {
+        toast.success(`Claim created! AI classified as: ${response.data.domain} | Truth: ${response.data.truth_label}`);
+        navigate(`/claims/${response.data.id}`);
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create claim');
     } finally {
