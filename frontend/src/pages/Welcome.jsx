@@ -23,14 +23,11 @@ const Welcome = () => {
             <div className="flex flex-col items-center justify-center mb-6">
               <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-20 w-20 md:h-24 md:w-24 object-contain mb-4" />
               <h1 className="playfair text-5xl md:text-7xl font-bold tracking-tight text-slate-900">
-                Thrryv
+                Where Your Reputation Matters
               </h1>
             </div>
-            <p className="text-2xl md:text-3xl text-slate-700 mb-4 font-light leading-relaxed">
-              Evidence-Based Truth, Verified by the Community
-            </p>
             <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed">
-              A transparent fact-checking platform where claims are immutable, evidence is everything,
+              A transparent social media platform where claims are immutable, evidence is everything,
               and your reputation is built on accuracy, not volume.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
