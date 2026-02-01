@@ -118,9 +118,12 @@ const UserProfile = ({ currentUser }) => {
           <div className="flex items-center gap-4 md:gap-6">
             <UserAvatar user={user} size="xl" />
             <div>
-              <h1 className="playfair text-2xl md:text-3xl font-bold mb-2">{user.username}</h1>
-              <p className="text-muted-foreground text-sm">{user.email}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <h1 className="playfair text-2xl md:text-3xl font-bold mb-1">{user.username}</h1>
+              {/* Bio - publicly visible */}
+              {user.bio && (
+                <p className="text-muted-foreground text-sm mb-2 italic">"{user.bio}"</p>
+              )}
+              <p className="text-xs text-muted-foreground">
                 Member since {new Date(user.created_at).toLocaleDateString()}
               </p>
             </div>
