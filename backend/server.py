@@ -544,12 +544,6 @@ async def create_claim(
 ):
     claim_id = str(uuid.uuid4())
     
-    # AI-classify the domain
-    ai_domain = await classify_claim_domain(claim_data.text)
-    
-    # AI-fact check the claim
-    ai_truth_label, ai_confidence = await ai_fact_check_claim(claim_data.text)
-    
     # Get media objects and prepare for AI evaluation
     media_list = []
     media_files_for_eval = []
@@ -571,6 +565,12 @@ async def create_claim(
                         })
                 except Exception as e:
                     logging.warning(f"Could not read media file for evaluation: {e}")
+    
+    # AI-classify the domain (pass media for better classification)
+    ai_domain = await classify_claim_domain(claim_data.text, media_files_for_eval)
+    
+    # AI-fact check the claim
+    ai_truth_label, ai_confidence = await ai_fact_check_claim(claim_data.text)
     
     # Run AI Baseline Reputation Evaluation
     reputation_boost = 0.0
