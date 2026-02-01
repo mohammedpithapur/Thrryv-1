@@ -670,6 +670,30 @@ async def create_annotation(
         {"$inc": {"contribution_stats.annotations_added": 1}}
     )
     
+    # Create notification for claim owner (if not self)
+    if claim['author_id'] != current_user['id']:
+        notification_type_map = {
+            'support': 'supported',
+            'contradict': 'contradicted',
+            'context': 'added context to'
+        }
+        action_text = notification_type_map.get(annotation_data.annotation_type.value, 'annotated')
+        
+        notification = {
+            "id": str(uuid.uuid4()),
+            "user_id": claim['author_id'],
+            "type": "annotation",
+            "annotation_type": annotation_data.annotation_type.value,
+            "claim_id": claim_id,
+            "claim_preview": claim['text'][:80] + "..." if len(claim['text']) > 80 else claim['text'],
+            "from_user_id": current_user['id'],
+            "from_username": current_user['username'],
+            "message": f"{current_user['username']} {action_text} your claim",
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.notifications.insert_one(notification)
+    
     # Recalculate claim credibility
     all_annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
     
