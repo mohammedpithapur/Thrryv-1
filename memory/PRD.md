@@ -236,6 +236,16 @@ CORS_ORIGINS=*
   - Removed "up to 30 seconds." from supporting media
   - Removed "Optional" from Supporting Media label
 
+- ✅ **Profile Management Enhancements**
+  - **Username Updates**: "Save Changes" button directly under username field
+  - **Username Availability Check**: Real-time checking with intelligent suggestions
+  - **Suggestions**: If username taken, shows 5 alternatives (e.g., "testuser21", "testuser2_")
+  - **Bio Field**: 60-character limit with live counter, "Save Bio" button
+  - **Bio Display**: Shows publicly on profile in italics with quotes
+  - **Email Privacy**: Email NEVER shown on public profiles
+  - **Email Display**: Only visible to user in their own Edit Profile section
+  - **Public Profiles**: Any logged-in user can view full profile of other users
+
 ## Backlog / Future Tasks
 
 ### P1 - High Priority
