@@ -1088,7 +1088,7 @@ async def check_username_availability(username: str, current_user = Depends(get_
     
     return {"available": False, "suggestions": suggestions[:5]}
 
-# User profile
+# User profile (public view - no email)
 @api_router.get("/users/{user_id}")
 async def get_user_profile(user_id: str):
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
@@ -1099,12 +1099,18 @@ async def get_user_profile(user_id: str):
     claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(length=5)
     annotations = await db.annotations.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(length=5)
     
+    # Return public profile - NO email
     return {
         "id": user['id'],
         "username": user['username'],
-        "email": user['email'],
+        "bio": user.get('bio', ''),
         "reputation_score": user['reputation_score'],
         "contribution_stats": user['contribution_stats'],
+        "created_at": user['created_at'],
+        "profile_picture": user.get('profile_picture'),
+        "recent_claims": claims,
+        "recent_annotations": annotations
+    }
         "created_at": user['created_at'],
         "profile_picture": user.get('profile_picture'),
         "recent_claims": claims,
