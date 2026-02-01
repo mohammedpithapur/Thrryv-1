@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Upload, TrendingUp, Sparkles } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -14,6 +14,8 @@ const CreateClaim = ({ user }) => {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadedMedia, setUploadedMedia] = useState([]);
+  const [evaluationResult, setEvaluationResult] = useState(null);
+  const [showEvaluation, setShowEvaluation] = useState(false);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
