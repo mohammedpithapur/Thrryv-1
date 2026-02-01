@@ -647,7 +647,8 @@ async def create_claim(
     claim = {
         "id": claim_id,
         "text": claim_data.text,
-        "domain": ai_domain,  # Use AI-classified domain
+        "domain": ai_domain,  # Full hierarchical path
+        "category": category_result,  # Full category information
         "confidence_level": claim_data.confidence_level,
         "author_id": current_user['id'],
         "media_ids": claim_data.media_ids or [],
@@ -679,6 +680,7 @@ async def create_claim(
         "id": claim_id,
         "text": claim_data.text,
         "domain": ai_domain,
+        "category": category_result,
         "author": {
             "id": current_user['id'],
             "username": current_user['username'],
