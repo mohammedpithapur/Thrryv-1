@@ -156,6 +156,15 @@ CORS_ORIGINS=*
 - ✅ Fixed annotation voting (query param vs body issue)
 - ✅ All core features tested and working (100% pass rate)
 
+## Completed - February 1, 2026
+- ✅ **AI Baseline Reputation Evaluator** - Implemented GPT-5.2 powered content evaluation
+  - Evaluates claims at publish time for: clarity, originality, relevance, effort, evidentiary value
+  - Awards reputation boosts (+5 to +15 points) for high-quality contributions
+  - Never penalizes low-value content (non-punitive)
+  - Separate from community annotation system
+  - Shows evaluation results with detailed scores in modal after submission
+  - For media posts: evaluates if images/videos add meaningful information vs decoration
+
 ## Backlog / Future Tasks
 
 ### P1 - High Priority
