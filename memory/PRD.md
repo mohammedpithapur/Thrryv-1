@@ -165,6 +165,47 @@ CORS_ORIGINS=*
   - Shows evaluation results with detailed scores in modal after submission
   - For media posts: evaluates if images/videos add meaningful information vs decoration
 
+- ✅ **Delete Account Feature**
+  - Delete Account option in Settings page under "Danger Zone"
+  - Confirmation modal requires typing "Delete Account" exactly
+  - Hard deletes all user data: account, claims, annotations, notifications
+
+- ✅ **Delete Post Feature**
+  - Delete option on claims (from feed and profile page)
+  - Reverses reputation boost when claim is deleted
+  - Updates user stats after deletion
+
+- ✅ **Mobile Layout Fix**
+  - Floating Action Button (FAB) for "New Claim" on mobile devices
+  - Responsive navbar with hamburger menu for mobile
+  - Bell icon for notifications accessible on mobile
+
+- ✅ **Notification System**
+  - Bell icon in header shows unread count
+  - Dedicated Notifications page (/notifications)
+  - Notifications triggered when someone annotates user's claims
+  - Mark as read / Mark all as read functionality
+
+- ✅ **Profile Page Updates**
+  - Expandable/collapsible Claims and Annotations sections
+  - Shows all user's claims with reputation boost displayed
+  - Delete option on own claims from profile
+  - Click to navigate to claim detail
+
+- ✅ **Feed Updates**
+  - Reputation boost visible on posts (+X.X in green)
+  - Delete menu option for own posts
+  - Responsive design for mobile
+
+- ✅ **Welcome Page Update**
+  - Headline: "Where Your Reputation Matters"
+  - Subtext: "A transparent social media platform..."
+
+- ✅ **Strict 250-Word Limit**
+  - Word count display on create claim page
+  - Exceeds limit warning
+  - Submit button disabled when over limit
+
 ## Backlog / Future Tasks
 
 ### P1 - High Priority
