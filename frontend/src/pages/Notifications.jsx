@@ -64,7 +64,7 @@ const Notifications = () => {
       markAsRead(notification.id);
     }
     if (notification.claim_id) {
-      navigate(`/claims/${notification.claim_id}`);
+      navigate(`/posts/${notification.claim_id}`);
     }
   };
 
@@ -133,7 +133,7 @@ const Notifications = () => {
             <Bell size={48} className="mx-auto text-muted-foreground/50 mb-4" />
             <h2 className="text-lg font-medium mb-2">No notifications yet</h2>
             <p className="text-muted-foreground text-sm">
-              When someone supports, contradicts, or adds context to your claims, you'll see it here.
+              When someone supports, contradicts, or adds context to your posts, you'll see it here.
             </p>
           </div>
         ) : (

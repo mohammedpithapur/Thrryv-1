@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import UserAvatar from '../components/UserAvatar';
 import { useTheme } from '../context/ThemeContext';
-import { Camera, Moon, Sun, AlertTriangle, Check, X, Loader2, Save } from 'lucide-react';
+import { Camera, Moon, Sun, AlertTriangle, Check, X, Loader2, Save, ArrowLeft } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -24,6 +24,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
   
   // Username availability state
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -248,6 +249,15 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
 
   return (
     <div data-testid="profile-settings-page" className="max-w-3xl mx-auto px-4 md:px-6 py-8 pb-24">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+      >
+        <ArrowLeft size={20} />
+        <span>Back</span>
+      </button>
+
       <h1 className="playfair text-3xl md:text-4xl font-bold tracking-tight mb-8">Profile Settings</h1>
 
       {/* Profile Picture & Bio Section */}
@@ -396,53 +406,64 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
 
       {/* Password Section */}
       <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
-        <h2 className="text-xl font-semibold mb-6">Change Password</h2>
-        
-        <form onSubmit={handleSavePassword} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Current Password</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-              placeholder="Enter current password"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">New Password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-              placeholder="Enter new password"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Confirm New Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-              placeholder="Confirm new password"
-            />
-          </div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Change Password</h2>
+          <button
+            type="button"
+            onClick={() => setShowPasswordFields((prev) => !prev)}
+            className="px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-sm text-sm font-medium"
+          >
+            {showPasswordFields ? 'Hide' : 'Change Password'}
+          </button>
+        </div>
 
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={saving || !currentPassword || !newPassword || !confirmPassword}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Update Password
-            </button>
-          </div>
-        </form>
+        {showPasswordFields && (
+          <form onSubmit={handleSavePassword} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Current Password</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                placeholder="Enter current password"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                placeholder="Enter new password"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-border rounded-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                placeholder="Confirm new password"
+              />
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={saving || !currentPassword || !newPassword || !confirmPassword}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Update Password
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Appearance Settings */}
@@ -489,7 +510,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
           <div>
             <h3 className="font-medium mb-1">Delete Account</h3>
             <p className="text-sm text-muted-foreground">
-              Permanently delete your account, all your claims, and annotations.
+              Permanently delete your account, all your posts, and annotations.
             </p>
           </div>
           <button
@@ -517,9 +538,9 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
               <p>This action <strong className="text-foreground">cannot be undone</strong>. This will permanently delete:</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Your account and profile</li>
-                <li>All your claims and posts</li>
+                <li>All your posts</li>
                 <li>All your annotations</li>
-                <li>Your reputation history</li>
+                <li>Your impact history</li>
               </ul>
             </div>
 

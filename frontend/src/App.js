@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./context/ThemeContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Navbar from "./components/Navbar";
 import Welcome from "./pages/Welcome";
 import Feed from "./pages/Feed";
@@ -73,25 +74,29 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="App min-h-screen bg-background">
-        <BrowserRouter>
-          <Routes>
-            {/* Welcome page without navbar */}
-            <Route path="/" element={<Welcome />} />
-            
-            {/* Pages with navbar */}
-            <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><Feed user={user} /></>} />
-            <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ClaimDetail user={user} /></>} />
-            <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><CreateClaim user={user} /></>} />
-            <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><Login onLogin={handleLogin} /></>} />
-            <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><Register onLogin={handleLogin} /></>} />
-            <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><UserProfile currentUser={user} /></>} />
-            <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></>} />
-            <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><Notifications /></>} />
-          </Routes>
-          <Toaster position="top-center" />
-        </BrowserRouter>
-      </div>
+      <ErrorBoundary>
+        <div className="App min-h-screen bg-background">
+          <BrowserRouter>
+            <Routes>
+              {/* Welcome page without navbar */}
+              <Route path="/" element={<Welcome />} />
+              
+              {/* Pages with navbar - each wrapped in its own ErrorBoundary */}
+              <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Feed user={user} /></ErrorBoundary></>} />
+              <Route path="/posts/:postId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
+              <Route path="/create-post" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
+              <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
+              <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
+              <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Login onLogin={handleLogin} /></ErrorBoundary></>} />
+              <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Register onLogin={handleLogin} /></ErrorBoundary></>} />
+              <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><UserProfile currentUser={user} onLogout={handleLogout} /></ErrorBoundary></>} />
+              <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ErrorBoundary></>} />
+              <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Notifications /></ErrorBoundary></>} />
+            </Routes>
+            <Toaster position="top-center" />
+          </BrowserRouter>
+        </div>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }

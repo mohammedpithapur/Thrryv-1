@@ -21,10 +21,9 @@ import uuid
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
-
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 
 @dataclass
@@ -179,17 +178,29 @@ class HierarchicalCategorizer:
     ]
     
     def __init__(self):
-        self.api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not self.api_key:
-            raise ValueError("EMERGENT_LLM_KEY not found in environment")
-    
-    def _get_categorization_chat(self, session_id: str) -> LlmChat:
-        """Get a chat instance configured for hierarchical categorization"""
-        return LlmChat(
-            api_key=self.api_key,
-            session_id=session_id,
-            system_message=self._get_system_prompt()
-        ).with_model("openai", "gpt-5.2")
+        self.api_key = os.environ.get('GROQ_API_KEY')
+        self.model = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')
+        self.ai_available = bool(self.api_key)
+        if not self.ai_available:
+            logging.warning("GROQ_API_KEY not found - content categorization will use keyword fallback")
+
+    async def _groq_chat(self, system_prompt: str, user_prompt: str) -> str:
+        """Call Groq OpenAI-compatible chat completions API."""
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
     
     def _get_system_prompt(self) -> str:
         taxonomy_summary = "\n".join([
@@ -198,43 +209,45 @@ class HierarchicalCategorizer:
         ])
         
         return f"""You are an expert content categorization AI for Thrryv, a fact-checking platform.
-Your task is to analyze content (text, images, videos) and assign PRECISE, HIERARCHICAL categories.
-
-## TAXONOMY STRUCTURE
-Categories follow a hierarchy: Domain → Category → Subcategory → Specific Topic
-Example: "Science & Technology → Space Exploration → Mars Missions → Perseverance Rover"
+Your task is to create a SINGLE, CLEAR, DESCRIPTIVE tag that instantly tells users what the post is about.
 
 ## AVAILABLE DOMAINS
 {taxonomy_summary}
 
-## CRITICAL RULES
-1. NEVER use generic labels like "General", "Other", "Miscellaneous", or "Various"
-2. ALWAYS provide the most specific categorization possible
-3. For informal content (memes, satire, jokes), still categorize precisely:
-   - Meme about politics: "Internet Culture → Memes & Viral Content → Political Memes → Election Humor"
-   - Sports joke: "Sports & Athletics → [Sport] → Fan Culture → Matchday Humor"
-4. Multi-label is allowed - content can belong to multiple categories
-5. Identify the CONTENT FORMAT (meme, satire, factual claim, news, etc.)
-6. Note if content has cultural/contextual significance
+## CRITICAL RULES FOR TAG GENERATION
+1. Create ONE descriptive tag (2-4 words maximum)
+2. The tag should be IMMEDIATELY CLEAR and SPECIFIC
+3. Use simple, everyday language - avoid jargon
+4. Think like a social media user browsing their feed
+5. The tag should answer "What is this post about?"
+6. NEVER use generic labels like "General", "Other", "Various", "Content"
 
-## CONTENT FORMATS
-- factual_claim: A statement presented as fact
-- news_report: Reporting on events
-- opinion_piece: Subjective viewpoint
-- meme: Image/video with humorous intent
-- satire: Ironic or exaggerated content
-- screenshot: Captured content from elsewhere
-- documentary_evidence: Supporting visual evidence
-- personal_story: Individual experience
-- analysis: In-depth examination
+## EXAMPLES OF GOOD TAGS
+- "Climate Change" (not "Science → Environmental Science → Climate")
+- "Election 2024" (not "Politics → Elections → Presidential")
+- "AI Technology" (not "Technology → Artificial Intelligence")
+- "Space Exploration" (not "Science → Space → Missions")
+- "Crypto Markets" (not "Economics → Finance → Cryptocurrency")
+- "Health Tips" (not "Health → Wellness → Advice")
+- "Movie Reviews" (not "Entertainment → Film → Reviews")
+- "Sports News" (not "Sports → News → Updates")
+
+## BAD TAGS TO AVOID
+- Too long: "Science and Technology Space Exploration Mars Missions"
+- Too vague: "News", "Information", "Post", "Content"
+- Too technical: "Quantum Entanglement Phenomena"
+- Generic: "General", "Other", "Various Topics"
+
+## CONTENT FORMATS (for context only, don't include in tag)
+- factual_claim, news_report, opinion_piece, meme, satire, etc.
 
 ## OUTPUT FORMAT
 Respond ONLY with this JSON structure:
 {{
   "primary_category": {{
-    "path": ["Domain", "Category", "Subcategory", "Specific"],
+    "path": ["Single Descriptive Tag"],
     "confidence": 0.0-1.0,
-    "reasoning": "Brief explanation"
+    "reasoning": "Brief explanation of why this tag was chosen"
   }},
   "secondary_categories": [
     {{
@@ -268,9 +281,6 @@ Be thorough, precise, and never default to vague categorizations."""
             ContentCategorizationResult with full hierarchical categorization
         """
         media_files = media_files or []
-        session_id = f"categorize-{uuid.uuid4().hex[:8]}"
-        
-        chat = self._get_categorization_chat(session_id)
         
         # Determine content type
         has_media = len(media_files) > 0
@@ -283,29 +293,25 @@ Be thorough, precise, and never default to vague categorizations."""
         else:
             content_type = "text"
         
-        # Build prompt
-        prompt = f"""Analyze and categorize this content:
+        if not self.ai_available:
+            logging.info("AI unavailable - using keyword-based categorization")
+            return self._fallback_categorization(text, content_type)
+        
+        try:
+            # Build prompt
+            prompt = f"""Analyze and categorize this content:
 
 CONTENT TYPE: {content_type}
 TEXT: {text}
 """
-        
-        if existing_domain and existing_domain not in ["Other", "General"]:
-            prompt += f"\nPREVIOUS HINT: Content may relate to {existing_domain}"
-        
-        # Prepare message with media if available
-        try:
-            if media_files and len(media_files) > 0:
-                first_media = media_files[0]
-                media_base64 = base64.b64encode(first_media['data']).decode('utf-8')
-                message = UserMessage(
-                    text=prompt + "\n\n[Media attached - analyze visual content for categorization]",
-                    file_contents=[ImageContent(image_base64=media_base64)]
-                )
-            else:
-                message = UserMessage(text=prompt)
             
-            response = await chat.send_message(message)
+            if existing_domain and existing_domain not in ["Other", "General"]:
+                prompt += f"\nPREVIOUS HINT: Content may relate to {existing_domain}"
+            
+            if media_files and len(media_files) > 0:
+                prompt += "\n\nMEDIA NOTE: Media attached, but vision analysis is unavailable. Categorize based on text and context only."
+
+            response = await self._groq_chat(self._get_system_prompt(), prompt)
             result = self._parse_response(response, content_type)
             
             logging.info(f"Hierarchical Categorization: {result.primary_category.full_path} "
@@ -313,7 +319,7 @@ TEXT: {text}
                         f"format: {result.content_format})")
             
             return result
-            
+        
         except Exception as e:
             logging.error(f"Categorization failed: {e}")
             return self._fallback_categorization(text, content_type)

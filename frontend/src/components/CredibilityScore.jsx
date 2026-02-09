@@ -42,9 +42,9 @@ const CredibilityScore = ({ score }) => {
         </div>
       </div>
       <div>
-        <p className="text-sm font-medium">Credibility Score</p>
+        <p className="text-sm font-medium">Post Score</p>
         <p className="text-xs text-muted-foreground">
-          Based on evidence balance & contributor reputation
+          Based on clarity, context, evidence, and community feedback
         </p>
       </div>
     </div>

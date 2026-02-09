@@ -39,7 +39,7 @@ const Register = ({ onLogin }) => {
     <div data-testid="register-page" className="max-w-md mx-auto px-6 py-12">
       <div className="mb-8 text-center">
         <h1 className="playfair text-4xl font-bold tracking-tight mb-2">Sign Up</h1>
-        <p className="text-muted-foreground">Join the truth-seeking community</p>
+        <p className="text-muted-foreground">Join the knowledge-sharing community</p>
       </div>
 
       <form data-testid="register-form" onSubmit={handleSubmit} className="bg-card border border-border p-8 rounded-sm">

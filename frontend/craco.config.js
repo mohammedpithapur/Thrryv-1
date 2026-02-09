@@ -10,7 +10,7 @@ const disableVisualEdits = process.env.DISABLE_VISUAL_EDITS === "true";
 // Environment variable overrides
 const config = {
   enableHealthCheck: process.env.ENABLE_HEALTH_CHECK === "true",
-  enableVisualEdits: isDevServer && !disableVisualEdits, // Disable if env var is set
+  enableVisualEdits: false, // Temporarily disabled due to babel plugin issue
 };
 
 // Conditionally load visual edits modules only in dev mode

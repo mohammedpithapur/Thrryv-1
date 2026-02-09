@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import TruthBadge from '../components/TruthBadge';
 import CredibilityScore from '../components/CredibilityScore';
 import AnnotationCard from '../components/AnnotationCard';
-import { Loader2 } from 'lucide-react';
+import VideoPlayer from '../components/VideoPlayer';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -13,21 +13,16 @@ const API = `${BACKEND_URL}/api`;
 const ClaimDetail = ({ user }) => {
   const params = useParams();
   const navigate = useNavigate();
-  const claimId = params.claimId;
+  const claimId = params.postId || params.claimId;
   const [claim, setClaim] = useState(null);
   const [annotations, setAnnotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [annotationText, setAnnotationText] = useState('');
-  const [annotationType, setAnnotationType] = useState('support');
   const [submitting, setSubmitting] = useState(false);
   const [uploadingAnnotationMedia, setUploadingAnnotationMedia] = useState(false);
   const [annotationMedia, setAnnotationMedia] = useState([]);
 
-  useEffect(() => {
-    loadData();
-  }, [claimId]);
-
-  const loadData = () => {
+  const loadData = useCallback(() => {
     axios.get(`${API}/claims/${claimId}`)
       .then(claimRes => {
         setClaim(claimRes.data);
@@ -38,10 +33,14 @@ const ClaimDetail = ({ user }) => {
         setLoading(false);
       })
       .catch(() => {
-        toast.error('Failed to load claim');
+        toast.error('Failed to load post');
         setLoading(false);
       });
-  };
+  }, [claimId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -57,15 +56,14 @@ const ClaimDetail = ({ user }) => {
       `${API}/claims/${claimId}/annotations`,
       { 
         text: annotationText, 
-        annotation_type: annotationType, 
         media_ids: annotationMedia.map(m => m.id) 
       },
       { headers: { Authorization: `Bearer ${token}` } }
     )
-      .then(() => {
+      .then((response) => {
         setAnnotationText('');
         setAnnotationMedia([]);
-        toast.success('Annotation added');
+        toast.success('Annotation added (AI classified)');
         loadData();
         setSubmitting(false);
       })
@@ -132,24 +130,32 @@ const ClaimDetail = ({ user }) => {
   }
 
   if (!claim) {
-    return <div className="text-center py-12"><p>Claim not found</p></div>;
+    return <div className="text-center py-12"><p>Post not found</p></div>;
   }
 
-  const supportAnnotations = annotations.filter(a => a.annotation_type === 'support');
-  const contradictAnnotations = annotations.filter(a => a.annotation_type === 'contradict');
-  const contextAnnotations = annotations.filter(a => a.annotation_type === 'context');
+  const sortedAnnotations = [...annotations].sort(
+    (a, b) => (b.helpful_votes || 0) - (a.helpful_votes || 0)
+  );
 
   const hasMedia = claim.media && claim.media.length > 0;
   const firstMedia = hasMedia ? claim.media[0] : null;
 
   return (
     <div data-testid="claim-detail-page" className="max-w-7xl mx-auto px-6 py-8">
-      {/* Claim Card */}
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+      >
+        <ArrowLeft size={20} />
+        <span>Back</span>
+      </button>
+
+      {/* Post Card */}
       <div className="bg-card border border-border p-8 rounded-sm mb-6">
         <div className="mb-4">
           <p className="text-sm text-muted-foreground mb-2">{claim.domain} • {new Date(claim.created_at).toLocaleDateString()}</p>
           <h1 className="playfair text-3xl font-bold mb-4">{claim.text}</h1>
-          <TruthBadge label={claim.truth_label} />
         </div>
 
         {firstMedia && (
@@ -157,24 +163,36 @@ const ClaimDetail = ({ user }) => {
             {firstMedia.file_type && firstMedia.file_type.startsWith('image/') && (
               <img
                 src={`${API}/media/${firstMedia.id}`}
-                alt="Claim evidence"
-                className="max-w-2xl w-full h-auto rounded-sm border border-border shadow-sm"
+                alt="Post evidence"
+                className="max-w-2xl w-full h-auto rounded-lg shadow-lg"
               />
             )}
             {firstMedia.file_type && firstMedia.file_type.startsWith('video/') && (
-              <video
-                controls
-                className="max-w-2xl w-full h-auto rounded-sm border border-border shadow-sm"
-              >
-                <source src={`${API}/media/${firstMedia.id}`} type={firstMedia.file_type} />
-                Your browser does not support video playback.
-              </video>
+              <div className="max-w-2xl w-full mx-auto rounded-lg shadow-lg">
+                <VideoPlayer
+                  src={`${API}/media/${firstMedia.id}`}
+                  autoPlay={false}
+                  fit="contain"
+                  screenFit={true}
+                  className="w-full"
+                />
+              </div>
             )}
           </div>
         )}
 
         <CredibilityScore score={claim.credibility_score} />
-        <p className="text-sm mt-4">by {claim.author.username} (Rep: {claim.author.reputation_score.toFixed(0)})</p>
+        <div className="text-sm mt-4">
+          <span className="text-muted-foreground">by </span>
+          <button
+            type="button"
+            onClick={() => navigate(`/profile/${claim.author.id}`)}
+            className="font-medium hover:text-primary transition-colors"
+          >
+            {claim.author.username}
+          </button>
+          <span className="text-muted-foreground"> (Impact: {claim.author.reputation_score.toFixed(0)})</span>
+        </div>
       </div>
 
       {/* Add Annotation Form - Right under the post */}
@@ -182,41 +200,9 @@ const ClaimDetail = ({ user }) => {
         <form data-testid="annotation-form" onSubmit={handleSubmit} className="bg-card border border-border p-6 rounded-sm mb-8">
           <h2 className="playfair text-xl font-semibold mb-4">Add Your Annotation</h2>
           
-          <div className="flex gap-2 mb-4">
-            <button 
-              type="button" 
-              onClick={() => setAnnotationType('support')} 
-              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
-                annotationType === 'support' 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-              }`}
-            >
-              Support
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setAnnotationType('contradict')} 
-              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
-                annotationType === 'contradict' 
-                  ? 'bg-red-600 text-white' 
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-              }`}
-            >
-              Contradict
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setAnnotationType('context')} 
-              className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
-                annotationType === 'context' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-              }`}
-            >
-              Context
-            </button>
-          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            AI will automatically classify your annotation as Support, Contradict, or Context.
+          </p>
 
           <textarea
             data-testid="annotation-text-input"
@@ -224,7 +210,7 @@ const ClaimDetail = ({ user }) => {
             onChange={(e) => setAnnotationText(e.target.value)}
             className="w-full px-4 py-3 border rounded-sm mb-4 focus:outline-none focus:ring-2 focus:ring-ring"
             rows="4"
-            placeholder="Provide evidence, sources, or context to support your annotation..."
+            placeholder="Provide evidence, sources, or context for your annotation..."
           />
           
           <div className="mb-4">
@@ -279,58 +265,15 @@ const ClaimDetail = ({ user }) => {
         </p>
       </div>
 
-      {/* Annotations Grid - Three columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div>
-          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
-            <span className="w-1 h-6 bg-green-600 rounded-full"></span>
-            Supporting Evidence
-            <span className="text-sm text-muted-foreground font-normal">({supportAnnotations.length})</span>
-          </h3>
-          {supportAnnotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No supporting evidence yet</p>
-          ) : (
-            <div>
-              {supportAnnotations.map(ann => (
-                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
-            <span className="w-1 h-6 bg-red-600 rounded-full"></span>
-            Contradictions
-            <span className="text-sm text-muted-foreground font-normal">({contradictAnnotations.length})</span>
-          </h3>
-          {contradictAnnotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No contradictions yet</p>
-          ) : (
-            <div>
-              {contradictAnnotations.map(ann => (
-                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3 className="playfair text-xl font-semibold mb-4 flex items-center gap-2">
-            <span className="w-1 h-6 bg-blue-600 rounded-full"></span>
-            Context
-            <span className="text-sm text-muted-foreground font-normal">({contextAnnotations.length})</span>
-          </h3>
-          {contextAnnotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No context yet</p>
-          ) : (
-            <div>
-              {contextAnnotations.map(ann => (
-                <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Annotations List */}
+      <div className="space-y-3">
+        {sortedAnnotations.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">No annotations yet</p>
+        ) : (
+          sortedAnnotations.map(ann => (
+            <AnnotationCard key={ann.id} annotation={ann} onVote={handleVote} canVote={!!user} />
+          ))
+        )}
       </div>
     </div>
   );

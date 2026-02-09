@@ -16,14 +16,14 @@ Key Principles:
 import os
 import base64
 import asyncio
+import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
-
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, FileContentWithMimeType
 
 
 class ContentType(Enum):
@@ -59,33 +59,29 @@ class AIReputationEvaluator:
     BOOST_THRESHOLD = 50.0  # Minimum average score to qualify for boost
     
     def __init__(self):
-        self.api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not self.api_key:
-            raise ValueError("EMERGENT_LLM_KEY not found in environment")
-    
-    def _get_text_chat(self, session_id: str) -> LlmChat:
-        """Get a chat instance for text analysis using GPT-5.2"""
-        return LlmChat(
-            api_key=self.api_key,
-            session_id=session_id,
-            system_message=self._get_text_system_prompt()
-        ).with_model("openai", "gpt-5.2")
-    
-    def _get_vision_chat(self, session_id: str) -> LlmChat:
-        """Get a chat instance for image/video analysis using GPT-5.2 vision"""
-        return LlmChat(
-            api_key=self.api_key,
-            session_id=session_id,
-            system_message=self._get_media_system_prompt()
-        ).with_model("openai", "gpt-5.2")
-    
-    def _get_gemini_chat(self, session_id: str) -> LlmChat:
-        """Get a Gemini chat instance for additional media analysis"""
-        return LlmChat(
-            api_key=self.api_key,
-            session_id=session_id,
-            system_message=self._get_media_system_prompt()
-        ).with_model("gemini", "gemini-2.5-flash")
+        self.api_key = os.environ.get('GROQ_API_KEY')
+        self.model = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')
+        self.ai_available = bool(self.api_key)
+        if not self.ai_available:
+            logging.warning("GROQ_API_KEY not found - AI evaluation will use fallback scoring")
+
+    async def _groq_chat(self, system_prompt: str, user_prompt: str) -> str:
+        """Call Groq OpenAI-compatible chat completions API."""
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
     
     def _get_text_system_prompt(self) -> str:
         return """You are an AI content evaluator for Thrryv, a fact-checking platform. 
@@ -174,24 +170,23 @@ Respond ONLY in this JSON format:
 
     async def evaluate_text_content(self, text: str, domain: str = "") -> Dict[str, Any]:
         """Evaluate text-only content"""
-        import uuid
-        session_id = f"eval-text-{uuid.uuid4().hex[:8]}"
+        if not self.ai_available:
+            logging.info("AI unavailable - using heuristic text evaluation")
+            return self._heuristic_text_evaluation(text, domain)
         
-        chat = self._get_text_chat(session_id)
-        
-        prompt = f"""Evaluate this claim/post for informational value:
+        try:
+            prompt = f"""Evaluate this claim/post for informational value:
 
 DOMAIN: {domain if domain else "General"}
 CONTENT: {text}
 
 Remember: Do NOT judge truth/correctness. Only assess content quality and value."""
-
-        try:
-            response = await chat.send_message(UserMessage(text=prompt))
+            
+            response = await self._groq_chat(self._get_text_system_prompt(), prompt)
             return self._parse_text_response(response)
         except Exception as e:
-            print(f"Text evaluation error: {e}")
-            return self._default_text_scores()
+            logging.error(f"Text evaluation error: {e}")
+            return self._heuristic_text_evaluation(text, domain)
     
     async def evaluate_media_content(
         self, 
@@ -200,42 +195,13 @@ Remember: Do NOT judge truth/correctness. Only assess content quality and value.
         claim_text: str = ""
     ) -> Dict[str, Any]:
         """Evaluate image or video frame content"""
-        import uuid
-        session_id = f"eval-media-{uuid.uuid4().hex[:8]}"
+        if not self.ai_available:
+            logging.info("AI unavailable - using default media scoring")
+            return self._default_media_scores()
         
-        # Use GPT-5.2 vision for primary analysis
-        chat = self._get_vision_chat(session_id)
-        
-        # Convert to base64
-        media_base64 = base64.b64encode(media_data).decode('utf-8')
-        
-        prompt = f"""Evaluate this media for informational value in the context of a fact-checking post.
-
-CLAIM CONTEXT: {claim_text if claim_text else "No text provided"}
-
-Does this media add meaningful information or is it just decoration?"""
-
-        try:
-            image_content = ImageContent(image_base64=media_base64)
-            response = await chat.send_message(UserMessage(
-                text=prompt,
-                file_contents=[image_content]
-            ))
-            return self._parse_media_response(response)
-        except Exception as e:
-            print(f"Media evaluation error with OpenAI: {e}")
-            # Fallback to Gemini
-            try:
-                gemini_chat = self._get_gemini_chat(f"eval-media-gemini-{uuid.uuid4().hex[:8]}")
-                image_content = ImageContent(image_base64=media_base64)
-                response = await gemini_chat.send_message(UserMessage(
-                    text=prompt,
-                    file_contents=[image_content]
-                ))
-                return self._parse_media_response(response)
-            except Exception as e2:
-                print(f"Media evaluation error with Gemini fallback: {e2}")
-                return self._default_media_scores()
+        # Groq does not support vision; fall back to default media scoring
+        logging.info("Groq vision not available - using default media scoring")
+        return self._default_media_scores()
     
     async def evaluate_post(
         self,
@@ -378,6 +344,56 @@ Does this media add meaningful information or is it just decoration?"""
             'media_type': 'unknown',
             'adds_information': True,
             'summary': 'Media evaluation unavailable'
+        }
+    
+    def _heuristic_text_evaluation(self, text: str, domain: str = "") -> Dict[str, Any]:
+        """Fallback heuristic evaluation when AI is unavailable"""
+        text_lower = text.lower()
+        word_count = len(text.split())
+        
+        # Clarity: Based on readability
+        clarity = 50
+        if word_count >= 30 and word_count <= 150:
+            clarity += 20
+        if '.' in text or '!' in text or '?' in text:
+            clarity += 10
+        clarity = min(100, clarity)
+        
+        # Originality: Penalize very short or generic content
+        originality = 60
+        if word_count < 10:
+            originality -= 20
+        if any(word in text_lower for word in ['breaking:', 'just in:', 'wow', 'omg']):
+            originality -= 10
+        originality = max(0, min(100, originality))
+        
+        # Relevance: Boost if domain-specific keywords present
+        relevance = 55
+        if domain:
+            relevance += 10
+        
+        # Effort: Based on length and structure
+        effort = 45
+        if word_count >= 50:
+            effort += 15
+        if word_count >= 100:
+            effort += 15
+        effort = min(100, effort)
+        
+        # Evidentiary value: Check for source indicators
+        evidentiary = 50
+        evidence_keywords = ['study', 'research', 'according to', 'source', 'data', 'report', 'analysis']
+        if any(kw in text_lower for kw in evidence_keywords):
+            evidentiary += 20
+        evidentiary = min(100, evidentiary)
+        
+        return {
+            'clarity_score': clarity,
+            'originality_score': originality,
+            'relevance_score': relevance,
+            'effort_score': effort,
+            'evidentiary_value_score': evidentiary,
+            'summary': 'Heuristic evaluation (AI unavailable)'
         }
     
     def _generate_summary(
