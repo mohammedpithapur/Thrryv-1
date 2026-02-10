@@ -86,6 +86,10 @@ cd backend
 pytest
 ```
 
+## CI
+
+GitHub Actions runs backend tests and a frontend build on pushes and pull requests to `main`.
+
 ## Roadmap
 
 - Authentication hardening and role-based moderation
