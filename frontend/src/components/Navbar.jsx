@@ -57,7 +57,7 @@ const Navbar = ({ user, onLogout }) => {
             </Link>
 
             {/* Search */}
-            <div className="flex-1 flex justify-end md:justify-center">
+            <div className="flex-1 flex justify-end md:justify-center min-w-0">
               <div className="w-full max-w-xl md:max-w-md">
                 <SearchBar
                   compact

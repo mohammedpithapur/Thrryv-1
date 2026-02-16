@@ -111,6 +111,12 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
 
   const showInput = !compact || isOpen;
 
+  const inputWrapperClass = compact
+    ? `relative overflow-hidden transition-all duration-200 ease-out ${
+        isOpen ? 'w-full max-w-full opacity-100' : 'w-0 max-w-0 opacity-0 pointer-events-none'
+      }`
+    : 'relative w-full';
+
   return (
     <div ref={searchRef} className="relative w-full max-w-2xl">
       <div className={compact ? "flex items-center justify-end gap-2" : ""}>
@@ -135,7 +141,7 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
         {showInput && (
           <form
             onSubmit={handleSubmit}
-            className={compact ? "relative w-full sm:w-64" : "relative w-full"}
+            className={inputWrapperClass}
           >
             <div className="relative">
               <Search 
