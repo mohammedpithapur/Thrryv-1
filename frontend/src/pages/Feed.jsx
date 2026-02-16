@@ -149,12 +149,6 @@ const Feed = ({ user }) => {
 
   return (
     <div data-testid="feed-page" className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-8">
-      <div className="mb-6 md:mb-8">
-        <h1 className="playfair text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-2">Posts Feed</h1>
-        <p className="text-muted-foreground text-sm md:text-base">
-          Community-driven knowledge platform. Every post is verified through community annotations and analysis.
-        </p>
-      </div>
 
       {/* Tabs */}
       <div className="border-b border-border mb-8 overflow-x-auto">

@@ -16,8 +16,9 @@ const Welcome = () => {
   return (
     <div data-testid="welcome-page" className="min-h-screen bg-white">
       {/* Minimal Header */}
-      <header className="px-8 py-6">
+      <header className="px-8 py-6 flex items-center gap-3">
         <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
+        <span className="playfair text-xl font-semibold tracking-tight text-slate-900">Thrryv</span>
       </header>
       {/* Hero Section - Improved spacing and typography */}
       <div className="border-b border-slate-200">
@@ -30,8 +31,7 @@ const Welcome = () => {
               </h1>
             </div>
             <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed">
-              A transparent social media platform where posts are analyzed by AI, evidence is everything,
-              and your impact is built on quality content, not volume.
+              An AI-powered social platform that analyzes your posts, provides smart feedback, and helps you grow by consistently creating content your audience truly values.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
@@ -39,7 +39,7 @@ const Welcome = () => {
                 onClick={() => navigate('/register')}
                 className="px-10 py-4 bg-slate-900 text-white hover:bg-slate-800 font-medium text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
               >
-                Join the Community
+                Sign Up
               </button>
               <button
                 data-testid="welcome-login-btn"
@@ -60,7 +60,7 @@ const Welcome = () => {
             How Thrryv Works
           </h2>
           <p className="text-center text-slate-600 text-lg mb-16 max-w-2xl mx-auto">
-            A simple three-step process for community-driven fact verification
+            A simple three-step process for community-driven engagement
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">

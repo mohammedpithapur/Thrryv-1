@@ -58,6 +58,14 @@ const Navbar = ({ user, onLogout }) => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-3 shrink-0">
+              <div className="w-48">
+                <SearchBar
+                  compact
+                  placeholder="Search posts, topics, or keywords..."
+                  onSearch={handleSearch}
+                  value={new URLSearchParams(location.search).get('q') || ''}
+                />
+              </div>
               {user ? (
                 <>
                   {isFeedPage && (
@@ -109,14 +117,6 @@ const Navbar = ({ user, onLogout }) => {
                   </button>
                 </>
               )}
-              <div className="w-48">
-                <SearchBar
-                  compact
-                  placeholder="Search posts, topics, or keywords..."
-                  onSearch={handleSearch}
-                  value={new URLSearchParams(location.search).get('q') || ''}
-                />
-              </div>
             </div>
 
             {/* Mobile Navigation Toggle */}
