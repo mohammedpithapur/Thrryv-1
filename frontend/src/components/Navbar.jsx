@@ -56,20 +56,8 @@ const Navbar = ({ user, onLogout }) => {
               <span className="playfair text-xl md:text-2xl font-bold tracking-tight">Thrryv</span>
             </Link>
 
-            {/* Search */}
-            <div className="flex-1 flex justify-end md:justify-center min-w-0">
-              <div className="w-full max-w-xl md:max-w-md">
-                <SearchBar
-                  compact
-                  placeholder="Search posts, topics, or keywords..."
-                  onSearch={handleSearch}
-                  value={new URLSearchParams(location.search).get('q') || ''}
-                />
-              </div>
-            </div>
-
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-4 shrink-0">
+            <div className="hidden md:flex items-center gap-3 shrink-0">
               {user ? (
                 <>
                   {isFeedPage && (
@@ -121,10 +109,26 @@ const Navbar = ({ user, onLogout }) => {
                   </button>
                 </>
               )}
+              <div className="w-48">
+                <SearchBar
+                  compact
+                  placeholder="Search posts, topics, or keywords..."
+                  onSearch={handleSearch}
+                  value={new URLSearchParams(location.search).get('q') || ''}
+                />
+              </div>
             </div>
 
             {/* Mobile Navigation Toggle */}
-            <div className="flex md:hidden items-center gap-2">
+            <div className="flex md:hidden items-center gap-1 shrink-0">
+              <div className="w-28">
+                <SearchBar
+                  compact
+                  placeholder="Search..."
+                  onSearch={handleSearch}
+                  value={new URLSearchParams(location.search).get('q') || ''}
+                />
+              </div>
               {user && (
                 <>
                   <button

@@ -111,14 +111,106 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
 
   const showInput = !compact || isOpen;
 
-  const inputWrapperClass = compact
-    ? `relative overflow-hidden transition-all duration-200 ease-out ${
-        isOpen ? 'w-full max-w-full opacity-100' : 'w-0 max-w-0 opacity-0 pointer-events-none'
-      }`
-    : 'relative w-full';
+  const suggestionsClass = compact
+    ? "mt-2 bg-card border border-border rounded-sm shadow-lg max-h-[320px] overflow-y-auto"
+    : "absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-sm shadow-lg z-50 max-h-[400px] overflow-y-auto";
+
+  const suggestionsContent = (
+    <>
+      {/* Search Suggestions */}
+      {searchTerm.trim().length >= 2 && suggestions.length > 0 && (
+        <div className="p-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1">
+            Suggestions
+          </p>
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={index}
+              onClick={() => handleSearch(suggestion.text)}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
+            >
+              <Search size={16} className="text-muted-foreground" />
+              <span className="text-sm">{suggestion.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Recent Searches */}
+      {searchTerm.trim().length === 0 && recentSearches.length > 0 && (
+        <div className="p-2 border-t border-border">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1 flex items-center gap-2">
+            <Clock size={12} />
+            Recent Searches
+          </p>
+          {recentSearches.map((search, index) => (
+            <button
+              key={index}
+              onClick={() => handleSearch(search)}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
+            >
+              <Clock size={16} className="text-muted-foreground" />
+              <span className="text-sm">{search}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Trending Topics */}
+      {searchTerm.trim().length === 0 && (
+        <div className="p-2 border-t border-border">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1 flex items-center gap-2">
+            <TrendingUp size={12} />
+            Trending Topics
+          </p>
+          <div className="flex flex-wrap gap-2 px-2 py-2">
+            {trendingTopics.map((topic, index) => (
+              <button
+                key={index}
+                onClick={() => handleSearch(topic)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-sm transition-colors"
+              >
+                <Tag size={12} />
+                {topic}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommended Content */}
+      {searchTerm.trim().length === 0 && (
+        <div className="p-2 border-t border-border">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1">
+            Recommended for You
+          </p>
+          <div className="space-y-1">
+            <button
+              onClick={() => handleSearch('verified posts')}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
+            >
+              <span className="text-sm">📊 High-quality verified posts</span>
+            </button>
+            <button
+              onClick={() => handleSearch('debated topics')}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
+            >
+              <span className="text-sm">💬 Most debated topics</span>
+            </button>
+            <button
+              onClick={() => handleSearch('recent')}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
+            >
+              <span className="text-sm">🕒 Recent posts</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-2xl">
+    <div ref={searchRef} className="relative w-full">
       <div className={compact ? "flex items-center justify-end gap-2" : ""}>
         {compact && (
           <button
@@ -134,15 +226,12 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
             }}
             className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-background/90 hover:bg-secondary transition-colors"
           >
-            <Search size={18} className="text-muted-foreground" />
+            {showInput ? <X size={18} className="text-muted-foreground" /> : <Search size={18} className="text-muted-foreground" />}
           </button>
         )}
 
-        {showInput && (
-          <form
-            onSubmit={handleSubmit}
-            className={inputWrapperClass}
-          >
+        {!compact && showInput && (
+          <form onSubmit={handleSubmit} className="relative w-full">
             <div className="relative">
               <Search 
                 size={18} 
@@ -163,19 +252,14 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
                 placeholder={placeholder}
                 className="w-full pl-10 pr-10 py-2.5 border border-border rounded-full bg-background/95 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
               />
-              {(searchTerm.trim().length > 0 || compact) && (
+              {searchTerm.trim().length > 0 && (
                 <button
                   type="button"
-                  aria-label={searchTerm.trim().length > 0 ? "Clear search" : "Close search"}
+                  aria-label="Clear search"
                   onClick={() => {
-                    if (searchTerm.trim().length > 0) {
-                      setSearchTerm('');
-                      handleSearch('');
-                    }
+                    setSearchTerm('');
+                    handleSearch('');
                     setShowSuggestions(false);
-                    if (compact) {
-                      setIsOpen(false);
-                    }
                   }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
@@ -187,98 +271,58 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
         )}
       </div>
 
+      {compact && showInput && (
+        <div className="fixed top-20 left-4 right-4 md:left-auto md:right-6 md:w-[28rem] z-50">
+          <div className="bg-card/95 backdrop-blur border border-border rounded-2xl shadow-xl p-3">
+            <form onSubmit={handleSubmit} className="relative w-full">
+              <Search 
+                size={18} 
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" 
+              />
+              <input
+                ref={inputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setSearchTerm(next);
+                  if (!next.trim()) {
+                    handleSearch('');
+                  }
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder={placeholder}
+                className="w-full pl-10 pr-10 py-2.5 border border-border rounded-full bg-background/95 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+              />
+              {searchTerm.trim().length > 0 && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearchTerm('');
+                    handleSearch('');
+                    setShowSuggestions(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </form>
+
+            {showSuggestions && (
+              <div className={suggestionsClass}>
+                {suggestionsContent}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Suggestions Dropdown */}
-      {showSuggestions && showInput && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-sm shadow-lg z-50 max-h-[400px] overflow-y-auto">
-          {/* Search Suggestions */}
-          {searchTerm.trim().length >= 2 && suggestions.length > 0 && (
-            <div className="p-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1">
-                Suggestions
-              </p>
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSearch(suggestion.text)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
-                >
-                  <Search size={16} className="text-muted-foreground" />
-                  <span className="text-sm">{suggestion.text}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Recent Searches */}
-          {searchTerm.trim().length === 0 && recentSearches.length > 0 && (
-            <div className="p-2 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1 flex items-center gap-2">
-                <Clock size={12} />
-                Recent Searches
-              </p>
-              {recentSearches.map((search, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSearch(search)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
-                >
-                  <Clock size={16} className="text-muted-foreground" />
-                  <span className="text-sm">{search}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Trending Topics */}
-          {searchTerm.trim().length === 0 && (
-            <div className="p-2 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1 flex items-center gap-2">
-                <TrendingUp size={12} />
-                Trending Topics
-              </p>
-              <div className="flex flex-wrap gap-2 px-2 py-2">
-                {trendingTopics.map((topic, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSearch(topic)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full text-sm transition-colors"
-                  >
-                    <Tag size={12} />
-                    {topic}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Recommended Content */}
-          {searchTerm.trim().length === 0 && (
-            <div className="p-2 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 py-1">
-                Recommended for You
-              </p>
-              <div className="space-y-1">
-                <button
-                  onClick={() => handleSearch('verified posts')}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
-                >
-                  <span className="text-sm">📊 High-quality verified posts</span>
-                </button>
-                <button
-                  onClick={() => handleSearch('debated topics')}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
-                >
-                  <span className="text-sm">💬 Most debated topics</span>
-                </button>
-                <button
-                  onClick={() => handleSearch('recent')}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-secondary rounded-sm text-left transition-colors"
-                >
-                  <span className="text-sm">🕒 Recent posts</span>
-                </button>
-              </div>
-            </div>
-          )}
+      {showSuggestions && showInput && !compact && (
+        <div className={suggestionsClass}>
+          {suggestionsContent}
         </div>
       )}
     </div>
