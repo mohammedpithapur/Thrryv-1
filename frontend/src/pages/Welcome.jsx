@@ -16,13 +16,8 @@ const Welcome = () => {
   return (
     <div data-testid="welcome-page" className="min-h-screen bg-white">
       {/* Minimal Header */}
-      <header className="px-8 py-6 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
-          <h1 className="playfair text-2xl font-semibold tracking-tight text-slate-900">
-            Thrryv
-          </h1>
-        </div>
+      <header className="px-8 py-6">
+        <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
       </header>
       {/* Hero Section - Improved spacing and typography */}
       <div className="border-b border-slate-200">
@@ -76,7 +71,7 @@ const Welcome = () => {
               <div className="mb-2 text-sm font-semibold text-blue-600 tracking-wider">STEP 1</div>
               <h3 className="text-2xl font-bold mb-4 text-slate-900">Share Posts</h3>
               <p className="text-slate-600 leading-relaxed">
-                Share your perspectives with supporting evidence. Posts are analyzed by AI for clarity, context, and quality.
+                Share your perspectives. Posts are analyzed by AI for clarity, context, and quality.
               </p>
             </div>
 
@@ -87,7 +82,7 @@ const Welcome = () => {
               <div className="mb-2 text-sm font-semibold text-green-600 tracking-wider">STEP 2</div>
               <h3 className="text-2xl font-bold mb-4 text-slate-900">Get Feedback</h3>
               <p className="text-slate-600 leading-relaxed">
-                Receive AI-powered signals on clarity, context, and evidence quality. Community members annotate with insights.
+                Real-time AI feedback on how your content connects, convinces, and converts. Community members annotate with insights.
               </p>
             </div>
 
@@ -139,7 +134,7 @@ const Welcome = () => {
               <div>
                 <h3 className="font-bold text-xl mb-3 text-slate-900">Transparent Post Scoring</h3>
                 <p className="text-slate-600 leading-relaxed">
-                  Every post score (0-15.0) is calculated transparently from AI analysis and community feedback.
+                    Every post score is calculated transparently from AI analysis and community feedback.
                   No black boxes.
                 </p>
               </div>
@@ -154,7 +149,7 @@ const Welcome = () => {
               <div>
                 <h3 className="font-bold text-xl mb-3 text-slate-900">Quality Over Volume</h3>
                 <p className="text-slate-600 leading-relaxed">
-                  Impact is earned through high-quality, well-evidenced content, not by posting the most.
+                    Impact is earned through high-quality content, not by posting the most.
                 </p>
               </div>
             </div>

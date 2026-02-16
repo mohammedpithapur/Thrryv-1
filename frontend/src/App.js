@@ -87,8 +87,8 @@ function App() {
               <Route path="/create-post" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
               <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
               <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
-              <Route path="/login" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Login onLogin={handleLogin} /></ErrorBoundary></>} />
-              <Route path="/register" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Register onLogin={handleLogin} /></ErrorBoundary></>} />
+              <Route path="/login" element={<ErrorBoundary><Login onLogin={handleLogin} /></ErrorBoundary>} />
+              <Route path="/register" element={<ErrorBoundary><Register onLogin={handleLogin} /></ErrorBoundary>} />
               <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><UserProfile currentUser={user} onLogout={handleLogout} /></ErrorBoundary></>} />
               <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ErrorBoundary></>} />
               <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Notifications /></ErrorBoundary></>} />
