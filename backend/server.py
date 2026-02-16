@@ -32,6 +32,7 @@ from enum import Enum
 import asyncio
 import tempfile
 import boto3
+import uvicorn
 
 # Import AI Reputation Evaluator
 from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
@@ -2468,3 +2469,7 @@ async def health_check():
     return health_status
 
 app.include_router(api_router)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
