@@ -465,7 +465,7 @@ function setupDevServer(config) {
               execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" add "${result.file}"`);
               execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" commit -m "visual_edit_variable_${timestamp}"`);
             } catch (gitError) {
-              console.error(`Git commit failed for variableEdit: ${gitError.message}`);
+              // Git commit failed - changes written to file but not committed
             }
           } else {
             rejectedChanges.push({
@@ -816,11 +816,11 @@ function setupDevServer(config) {
                     element: elementName,
                   });
 
-                  // Still log for debugging
-                  console.error(`[backend] REJECTED: ${reason}`, change);
-                  console.error(
-                    `[backend] This change will be IGNORED to prevent contamination.`,
-                  );
+                  // Backend rejected this change
+                  rejectedChanges.push({
+                    change,
+                    reason: reason,
+                  });
                 }
               });
 
@@ -853,7 +853,7 @@ function setupDevServer(config) {
             execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" add "${targetFile}"`);
             execSync(`git -c user.name="visual-edit" -c user.email="support@emergent.sh" commit -m "visual_edit_${timestamp}"`);
           } catch (gitError) {
-            console.error(`Git commit failed: ${gitError.message}`);
+            // Git commit failed - changes written to file but not committed
             // Continue even if git fails - file write succeeded
           }
 

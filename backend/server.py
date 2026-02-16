@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Request, Header
+from fastapi.exceptions import RequestValidationError
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ except ImportError:
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response, RedirectResponse
+from starlette.responses import Response, RedirectResponse, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -33,6 +34,7 @@ import asyncio
 import tempfile
 import boto3
 import uvicorn
+import re
 
 # Import AI Reputation Evaluator
 from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
@@ -102,22 +104,52 @@ async def get_db_client():
 client = None
 db = None
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
+# Environment: development or production
+ENV = os.environ.get('ENV', 'development').lower()
+if ENV not in ['development', 'production']:
+    ENV = 'development'
+    logger.warning("Invalid ENV value, defaulting to 'development'")
+
+IS_PRODUCTION = ENV == 'production'
+
+# JWT configuration - JWT_SECRET is required in production
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    if IS_PRODUCTION:
+        raise ValueError("JWT_SECRET environment variable is required in production")
+    else:
+        # Development fallback
+        JWT_SECRET = 'dev-secret-key-change-in-production'
+        logger.warning("Using development JWT_SECRET. Set JWT_SECRET environment variable for production.")
+
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24 * 7
 ADMIN_API_KEY = os.environ.get('ADMIN_API_KEY')
+if not ADMIN_API_KEY:
+    logger.warning("ADMIN_API_KEY not set. Admin endpoints may not work properly.")
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 # File upload directory
 UPLOAD_DIR = ROOT_DIR / 'uploads'
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# AWS S3 Configuration
 AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 AWS_S3_MEDIA_PREFIX = os.environ.get('AWS_S3_MEDIA_PREFIX', 'media/')
 AWS_S3_PROFILE_PREFIX = os.environ.get('AWS_S3_PROFILE_PREFIX', 'profiles/')
-AWS_S3_PRESIGN_EXPIRES = int(os.environ.get('AWS_S3_PRESIGN_EXPIRES', '3600'))
+
+# Validate AWS S3 settings
+try:
+    AWS_S3_PRESIGN_EXPIRES = int(os.environ.get('AWS_S3_PRESIGN_EXPIRES', '3600'))
+    if AWS_S3_PRESIGN_EXPIRES < 60 or AWS_S3_PRESIGN_EXPIRES > 86400:
+        AWS_S3_PRESIGN_EXPIRES = 3600
+        logger.warning("AWS_S3_PRESIGN_EXPIRES out of range, using default 3600s")
+except (ValueError, TypeError):
+    AWS_S3_PRESIGN_EXPIRES = 3600
+    logger.warning("Invalid AWS_S3_PRESIGN_EXPIRES value, using default 3600s")
 
 def normalize_s3_prefix(prefix: str) -> str:
     if not prefix:
@@ -128,6 +160,46 @@ AWS_S3_MEDIA_PREFIX = normalize_s3_prefix(AWS_S3_MEDIA_PREFIX)
 AWS_S3_PROFILE_PREFIX = normalize_s3_prefix(AWS_S3_PROFILE_PREFIX)
 
 USE_S3 = bool(AWS_S3_BUCKET)
+
+# Reputation bounds
+MIN_REPUTATION = 0.0
+MAX_REPUTATION = 1000.0
+
+def clamp_reputation(score: float) -> float:
+    """Ensure reputation score stays within bounds"""
+    return max(MIN_REPUTATION, min(MAX_REPUTATION, score))
+
+# Scoring constants - Post score calculation
+ENGAGEMENT_BONUS_MAX = 5.0  # Maximum engagement bonus in post score
+ENGAGEMENT_ANNOTATION_WEIGHT = 0.3  # Weight per annotation in engagement calculation
+ENGAGEMENT_HELPFUL_VOTE_WEIGHT = 0.15  # Weight per helpful vote in engagement calculation
+STANCE_ADJUSTMENT_MAX = 5.0  # Maximum stance adjustment range (-5 to +5)
+STANCE_ADJUSTMENT_SCALE = 0.4  # Scale factor for stance adjustment calculation
+STANCE_SUPPORT_SCALE = 1.0  # Positive multiplier for support annotations
+STANCE_CONTRADICT_SCALE = 1.0  # Positive multiplier for contradict annotations
+
+# Annotation weight calculation constants
+ANNOTATION_WEIGHT_HELPFUL_VOTE_FACTOR = 0.2  # Weight increment per helpful vote
+ANNOTATION_WEIGHT_NOT_HELPFUL_FACTOR = 0.1  # Weight decrement per not helpful vote
+ANNOTATION_WEIGHT_MIN = 0.2  # Minimum annotation weight (floor)
+ANNOTATION_WEIGHT_MAX = 2.0  # Maximum reputation factor multiplier
+ANNOTATION_REPUTATION_FACTOR_BASE = 0.6  # Reputation factor minimum
+ANNOTATION_REPUTATION_FACTOR_PER_REP = ANNOTATION_REPUTATION_FACTOR_BASE / 10.0  # Rep scaling
+ANNOTATION_CONFIDENCE_FACTOR_BASE = 0.6  # Confidence factor baseline
+ANNOTATION_CONFIDENCE_FACTOR_SCALE = 0.4  # Confidence factor scaling
+
+# Evidence thresholds for annotations to influence score
+ANNOTATION_WEAK_EVIDENCE_PENALTY = 0.25  # Multiplier for weak evidence annotations
+ANNOTATION_HELPFUL_VOTES_THRESHOLD = 2  # Helpful votes needed for strong evidence
+ANNOTATION_AUTHOR_REP_THRESHOLD = 15  # Author reputation for strong evidence
+ANNOTATION_CONFIDENCE_THRESHOLD = 0.7  # Confidence level for strong evidence
+
+# Voting and reputation constants
+DEFAULT_AUTHOR_REPUTATION = 10.0  # Default reputation when not found
+INITIAL_USER_REPUTATION = 10.0  # Initial reputation for newly registered users
+VOTE_REPUTATION_GAIN_BASE = 1.0  # Base reputation gain from helpful vote
+VOTE_TIME_BONUS_MAX = 2.0  # Maximum time bonus for aging well annotations
+VOTE_TIME_BONUS_DAYS = 15.0  # Days to reach maximum time bonus (aging well)
 
 def get_s3_client():
     if not USE_S3:
@@ -168,10 +240,26 @@ async def s3_generate_presigned_url(bucket: str, key: str) -> str:
         ExpiresIn=AWS_S3_PRESIGN_EXPIRES
     )
 
-async def s3_delete_object(bucket: str, key: str) -> None:
+async def s3_delete_object(bucket: str, key: str) -> bool:
+    """Delete an object from S3 and return success status
+    
+    Args:
+        bucket: S3 bucket name
+        key: S3 object key
+        
+    Returns:
+        True if deletion successful or S3 disabled, False if error occurs
+    """
     if not S3_CLIENT:
-        return
-    await asyncio.to_thread(S3_CLIENT.delete_object, Bucket=bucket, Key=key)
+        return True  # Consider success if S3 is not configured (no-op)
+    try:
+        response = await asyncio.to_thread(S3_CLIENT.delete_object, Bucket=bucket, Key=key)
+        # Check for successful HTTP status code (204 No Content or 200 OK)
+        status_code = response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
+        return status_code in (200, 204)
+    except Exception as e:
+        logger.error(f"Failed to delete S3 object {bucket}/{key}: {e}")
+        return False
 
 async def load_media_bytes(media: Dict[str, Any]) -> Optional[bytes]:
     file_path = media.get('file_path')
@@ -198,12 +286,122 @@ async def load_media_bytes(media: Dict[str, Any]) -> Optional[bytes]:
         logging.warning(f"Could not read media from disk: {e}")
     return None
 
+# API Response Wrapper Classes for standardized responses
+class PaginationMetadata(BaseModel):
+    """Pagination metadata for list responses"""
+    limit: int
+    offset: int
+    total: int
+    has_more: bool
+
+class ListResponse(BaseModel):
+    """Standard response for list endpoints"""
+    success: bool = True
+    data: List[Dict[str, Any]] = Field(default_factory=list)
+    pagination: Optional[PaginationMetadata] = None
+    message: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
+
+class SingleResponse(BaseModel):
+    """Standard response for single resource endpoints"""
+    success: bool = True
+    data: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+
+class ErrorResponse(BaseModel):
+    """Standard error response"""
+    success: bool = False
+    error: str
+    detail: Optional[str] = None
+    status_code: int
+
+def standardize_list_response(
+    data: List[Dict[str, Any]],
+    limit: int,
+    offset: int,
+    total: int,
+    message: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Create a standardized list response with pagination"""
+    pagination = PaginationMetadata(
+        limit=limit,
+        offset=offset,
+        total=total,
+        has_more=offset + limit < total
+    )
+    response = ListResponse(
+        data=data,
+        pagination=pagination,
+        message=message,
+        extra=extra
+    )
+    return response.model_dump()
+
+def standardize_single_response(
+    data: Optional[Dict[str, Any]],
+    message: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a standardized single resource response"""
+    response = SingleResponse(
+        data=data,
+        message=message
+    )
+    return response.model_dump()
+
+def standardize_error_response(
+    error: str,
+    detail: Optional[str] = None,
+    status_code: int = 400
+) -> Dict[str, Any]:
+    """Create a standardized error response"""
+    response = ErrorResponse(
+        error=error,
+        detail=detail,
+        status_code=status_code
+    )
+    return response.model_dump()
+
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=standardize_error_response(
+            error="http_error",
+            detail=str(exc.detail),
+            status_code=exc.status_code
+        )
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=standardize_error_response(
+            error="validation_error",
+            detail=str(exc.errors()),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled server error: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=standardize_error_response(
+            error="server_error",
+            detail="Internal server error",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    )
 
 api_router = APIRouter(prefix="/api")
 
@@ -288,6 +486,14 @@ class FeedDiscoverRequest(BaseModel):
     limit: Optional[int] = 20
     diversity_preference: Optional[float] = 0.35
 
+class ClientLogEntry(BaseModel):
+    level: Optional[str] = "error"
+    message: str
+    source: Optional[str] = None
+    url: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+
 class ContentFeedbackRequest(BaseModel):
     claim_id: str
 
@@ -339,6 +545,28 @@ RELATED_DOMAIN_MAP = {
     "Entertainment": ["Society", "Technology"],
     "Sports": ["Health", "Society"],
     "Geography": ["History", "Environment"]
+}
+
+# Valid domain classifications for claims
+VALID_DOMAINS = [
+    "Science", "Health", "Technology", "Politics", "Economics",
+    "Environment", "History", "Society", "Sports", "Entertainment",
+    "Education", "Geography", "Food", "Law", "Religion", "General"
+]
+
+# Domain classification keywords for fallback method
+DOMAIN_KEYWORDS = {
+    "Science": ["scientific", "research", "study", "evidence", "experiment", "data", "scientists", "biology", "physics", "chemistry", "nasa", "rover", "mars", "space"],
+    "Health": ["health", "medical", "disease", "vaccine", "treatment", "medicine", "exercise", "wellness", "mental", "physical", "doctor", "hospital"],
+    "Technology": ["technology", "tech", "software", "digital", "computer", "internet", "AI", "electric", "innovation", "device", "app", "smartphone"],
+    "Politics": ["political", "government", "election", "policy", "law", "president", "congress", "vote", "democracy", "parliament", "senator"],
+    "Economics": ["economic", "economy", "financial", "market", "trade", "poverty", "wealth", "GDP", "inflation", "business", "stock", "investment"],
+    "Environment": ["environment", "climate", "pollution", "renewable", "energy", "nature", "conservation", "sustainability", "carbon", "emissions"],
+    "History": ["historical", "history", "ancient", "past", "century", "war", "empire", "civilization", "pyramids", "medieval", "dynasty"],
+    "Society": ["social", "society", "culture", "community", "people", "demographic", "population", "equality", "rights"],
+    "Sports": ["sport", "football", "basketball", "soccer", "olympics", "athlete", "team", "championship", "match", "player"],
+    "Entertainment": ["movie", "film", "music", "celebrity", "actor", "singer", "concert", "album", "game", "netflix"],
+    "Geography": ["country", "city", "continent", "river", "mountain", "ocean", "india", "china", "america", "europe", "kolkata", "delhi"]
 }
 
 def normalize_interest_domain(domain: Optional[str]) -> Optional[str]:
@@ -414,7 +642,7 @@ async def enrich_claim_for_discovery(claim: Dict[str, Any]) -> Dict[str, Any]:
     impact_score = min(100, max(0, (post_score / 15.0) * 100))
 
     claim['impact_score'] = impact_score
-    claim['author_reputation'] = author.get('reputation_score', 10.0) if author else 10.0
+    claim['author_reputation'] = author.get('reputation_score', DEFAULT_AUTHOR_REPUTATION) if author else DEFAULT_AUTHOR_REPUTATION
     claim['author_standing'] = author.get('user_standing_score', 1.0) if author else 1.0
 
     helpful_votes_total = sum(a.get('helpful_votes', 0) for a in annotations)
@@ -424,6 +652,86 @@ async def enrich_claim_for_discovery(claim: Dict[str, Any]) -> Dict[str, Any]:
     claim['annotation_count'] = len(annotations)
 
     return claim
+
+def normalize_search_query(query: str) -> str:
+    sanitized = InputValidator.sanitize_text(query, max_length=80)
+    return sanitized.strip()
+
+async def build_search_suggestions(query: str, limit: int) -> List[Dict[str, Any]]:
+    normalized = normalize_search_query(query)
+    if len(normalized) < 2:
+        return []
+
+    suggestions: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_suggestion(suggestion_type: str, text: str) -> None:
+        key = text.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        suggestions.append({"type": suggestion_type, "text": text})
+
+    for domain in VALID_DOMAINS:
+        if normalized.lower() in domain.lower():
+            add_suggestion("domain", domain)
+
+    if db:
+        regex = re.escape(normalized)
+        match = {"$regex": regex, "$options": "i"}
+        claims = await db.claims.find(
+            {
+                "$or": [
+                    {"text": match},
+                    {"domain": match},
+                    {"category.primary_path": {"$elemMatch": match}}
+                ]
+            },
+            {"_id": 0, "domain": 1, "category": 1}
+        ).limit(50).to_list(length=50)
+
+        for claim in claims:
+            domain = extract_claim_domain(claim)
+            if domain:
+                add_suggestion("topic", domain)
+            if len(suggestions) >= limit:
+                break
+
+    if not suggestions:
+        add_suggestion("query", normalized)
+
+    return suggestions[:limit]
+
+async def build_trending_topics(days: int, limit: int) -> List[Dict[str, Any]]:
+    if not db:
+        return []
+
+    safe_days = max(1, min(days, 30))
+    safe_limit = max(1, min(limit, 10))
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=safe_days)).isoformat()
+
+    claims = await db.claims.find(
+        {"created_at": {"$gte": cutoff_iso}},
+        {"_id": 0, "domain": 1, "category": 1}
+    ).to_list(length=2000)
+
+    if not claims:
+        claims = await db.claims.find(
+            {},
+            {"_id": 0, "domain": 1, "category": 1}
+        ).sort("created_at", -1).limit(2000).to_list(length=2000)
+
+    counts: Dict[str, int] = {}
+    for claim in claims:
+        domain = extract_claim_domain(claim)
+        if domain:
+            counts[domain] = counts.get(domain, 0) + 1
+
+    sorted_domains = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    return [
+        {"topic": domain, "count": count}
+        for domain, count in sorted_domains[:safe_limit]
+    ]
 
 def require_admin_key(x_admin_key: Optional[str] = Header(None)):
     if not ADMIN_API_KEY:
@@ -440,6 +748,15 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     
+    return user
+
+async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)):
+    if not credentials or not credentials.credentials:
+        return None
+    user_id = decode_jwt_token(credentials.credentials)
+    if not user_id:
+        return None
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
     return user
 
 # AI Detection (Hive AI)
@@ -504,7 +821,7 @@ def calculate_post_score(annotations: List[Dict], baseline_eval: Optional[Dict[s
         # Average of signals (0-100) normalized to 0-10 range
         base_score = ((clarity + originality + relevance + effort + evidentiary) / 5) / 10
     
-    # Add community engagement bonus (up to +5.0)
+    # Add community engagement bonus
     engagement_score = 0.0
     valid_annotation_count = 0
     helpful_vote_total = 0
@@ -523,37 +840,37 @@ def calculate_post_score(annotations: List[Dict], baseline_eval: Optional[Dict[s
         helpful_vote_total += helpful_votes
 
         # Weight by author reputation and classifier confidence (smart separation)
-        author_rep = 10.0
+        author_rep = DEFAULT_AUTHOR_REPUTATION
         if ann.get('author') and isinstance(ann.get('author'), dict):
-            author_rep = ann.get('author', {}).get('reputation_score', 10.0)
+            author_rep = ann.get('author', {}).get('reputation_score', DEFAULT_AUTHOR_REPUTATION)
         else:
-            author_rep = ann.get('author_reputation', 10.0)
-        rep_factor = min(2.0, max(0.6, author_rep / 10.0))
+            author_rep = ann.get('author_reputation', DEFAULT_AUTHOR_REPUTATION)
+        rep_factor = min(ANNOTATION_WEIGHT_MAX, max(ANNOTATION_REPUTATION_FACTOR_BASE, author_rep / 10.0))
         confidence = ann.get('classification_confidence', 0.5)
-        confidence_factor = 0.6 + (0.4 * min(1.0, max(0.0, confidence)))
+        confidence_factor = ANNOTATION_CONFIDENCE_FACTOR_BASE + (ANNOTATION_CONFIDENCE_FACTOR_SCALE * min(1.0, max(0.0, confidence)))
 
-        weight = max(0.2, (1.0 + (helpful_votes * 0.2) - (not_helpful_votes * 0.1)) * rep_factor * confidence_factor)
+        weight = max(ANNOTATION_WEIGHT_MIN, (1.0 + (helpful_votes * ANNOTATION_WEIGHT_HELPFUL_VOTE_FACTOR) - (not_helpful_votes * ANNOTATION_WEIGHT_NOT_HELPFUL_FACTOR)) * rep_factor * confidence_factor)
         ann_type = ann.get('annotation_type')
 
         # Require evidence to influence score (avoid single weak "no")
-        has_evidence = (helpful_votes >= 2) or (author_rep >= 15) or (confidence >= 0.7)
+        has_evidence = (helpful_votes >= ANNOTATION_HELPFUL_VOTES_THRESHOLD) or (author_rep >= ANNOTATION_AUTHOR_REP_THRESHOLD) or (confidence >= ANNOTATION_CONFIDENCE_THRESHOLD)
         if ann_type == 'support':
-            support_weight += weight if has_evidence else (weight * 0.25)
+            support_weight += weight if has_evidence else (weight * ANNOTATION_WEAK_EVIDENCE_PENALTY)
         elif ann_type == 'contradict':
-            contradict_weight += weight if has_evidence else (weight * 0.25)
+            contradict_weight += weight if has_evidence else (weight * ANNOTATION_WEAK_EVIDENCE_PENALTY)
 
     # Engagement bonus: annotations + helpful votes
-    engagement_score = min(5.0, (valid_annotation_count * 0.3) + (helpful_vote_total * 0.15))
+    engagement_score = min(ENGAGEMENT_BONUS_MAX, (valid_annotation_count * ENGAGEMENT_ANNOTATION_WEIGHT) + (helpful_vote_total * ENGAGEMENT_HELPFUL_VOTE_WEIGHT))
 
-    # Stance adjustment: support raises, contradict lowers (range -5 to +5)
-    stance_adjust = max(-5.0, min(5.0, (support_weight - contradict_weight) * 0.4))
+    # Stance adjustment: support raises, contradict lowers
+    stance_adjust = max(-STANCE_ADJUSTMENT_MAX, min(STANCE_ADJUSTMENT_MAX, (support_weight * STANCE_SUPPORT_SCALE - contradict_weight * STANCE_CONTRADICT_SCALE) * STANCE_ADJUSTMENT_SCALE))
 
     total_score = base_score + engagement_score + stance_adjust
     return max(0.0, total_score)
 # Auth endpoints
 @api_router.post("/auth/register")
 @limiter.limit("5/hour")  # Limit registration attempts
-async def register(request: Request, user_data: UserCreate):
+async def register(request: Request, user_data: UserCreate, standard: bool = False):
     # Validate inputs
     email = InputValidator.validate_email(user_data.email)
     username = InputValidator.validate_username(user_data.username)
@@ -576,7 +893,7 @@ async def register(request: Request, user_data: UserCreate):
         "username": username,
         "email": email,
         "password": hashed_pw,
-        "reputation_score": 10.0,
+        "reputation_score": INITIAL_USER_REPUTATION,
         "contribution_stats": {
             "claims_posted": 0,
             "annotations_added": 0,
@@ -589,26 +906,31 @@ async def register(request: Request, user_data: UserCreate):
     
     token = create_jwt_token(user_id)
     
-    return {
+    response_data = {
         "token": token,
         "user": {
             "id": user_id,
             "username": username,
             "email": email,
-            "reputation_score": 10.0
+            "reputation_score": INITIAL_USER_REPUTATION
         }
     }
 
+    if standard:
+        return standardize_single_response(response_data)
+
+    return response_data
+
 @api_router.post("/auth/login")
 @limiter.limit("10/minute")  # Prevent brute force attacks
-async def login(request: Request, credentials: UserLogin):
+async def login(request: Request, credentials: UserLogin, standard: bool = False):
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user['password']):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_jwt_token(user['id'])
     
-    return {
+    response_data = {
         "token": token,
         "user": {
             "id": user['id'],
@@ -620,9 +942,14 @@ async def login(request: Request, credentials: UserLogin):
         }
     }
 
+    if standard:
+        return standardize_single_response(response_data)
+
+    return response_data
+
 @api_router.get("/auth/me")
-async def get_me(current_user = Depends(get_current_user)):
-    return {
+async def get_me(current_user = Depends(get_current_user), standard: bool = False):
+    response_data = {
         "id": current_user['id'],
         "username": current_user['username'],
         "email": current_user['email'],  # Email only visible to the user themselves
@@ -632,13 +959,19 @@ async def get_me(current_user = Depends(get_current_user)):
         "profile_picture": current_user.get('profile_picture')
     }
 
+    if standard:
+        return standardize_single_response(response_data)
+
+    return response_data
+
 # Media upload
 @api_router.post("/media/upload")
 @limiter.limit("30/hour")  # Limit file uploads
 async def upload_media(
     request: Request,
     file: UploadFile = File(...),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     # Validate file
     contents = await file.read()
@@ -694,13 +1027,18 @@ async def upload_media(
     
     await db.media.insert_one(media)
     
-    return {
+    response_data = {
         "id": file_id,
         "file_name": file.filename,
         "file_type": file.content_type,
         "is_ai_generated": is_ai,
         "ai_confidence": confidence
     }
+
+    if standard:
+        return standardize_single_response(response_data)
+
+    return response_data
 
 # Media serving
 @api_router.get("/media/{media_id}")
@@ -797,11 +1135,7 @@ Respond ONLY with a JSON object:
         domain = result.get('domain', 'General')
         
         # Validate domain is in our list
-        valid_domains = ["Science", "Health", "Technology", "Politics", "Economics", 
-                        "Environment", "History", "Society", "Sports", "Entertainment",
-                        "Education", "Geography", "Food", "Law", "Religion", "General"]
-        
-        if domain not in valid_domains:
+        if domain not in VALID_DOMAINS:
             domain = "General"
             
         logging.info(f"AI Domain Classification: {domain} (confidence: {result.get('confidence', 'N/A')}, reason: {result.get('reasoning', 'N/A')})")
@@ -813,25 +1147,11 @@ Respond ONLY with a JSON object:
 
 
 async def classify_claim_domain_fallback(claim_text: str) -> str:
-    """Fallback keyword-based classification"""
-    domains_keywords = {
-        "Science": ["scientific", "research", "study", "evidence", "experiment", "data", "scientists", "biology", "physics", "chemistry", "nasa", "rover", "mars", "space"],
-        "Health": ["health", "medical", "disease", "vaccine", "treatment", "medicine", "exercise", "wellness", "mental", "physical", "doctor", "hospital"],
-        "Technology": ["technology", "tech", "software", "digital", "computer", "internet", "AI", "electric", "innovation", "device", "app", "smartphone"],
-        "Politics": ["political", "government", "election", "policy", "law", "president", "congress", "vote", "democracy", "parliament", "senator"],
-        "Economics": ["economic", "economy", "financial", "market", "trade", "poverty", "wealth", "GDP", "inflation", "business", "stock", "investment"],
-        "Environment": ["environment", "climate", "pollution", "renewable", "energy", "nature", "conservation", "sustainability", "carbon", "emissions"],
-        "History": ["historical", "history", "ancient", "past", "century", "war", "empire", "civilization", "pyramids", "medieval", "dynasty"],
-        "Society": ["social", "society", "culture", "community", "people", "demographic", "population", "equality", "rights"],
-        "Sports": ["sport", "football", "basketball", "soccer", "olympics", "athlete", "team", "championship", "match", "player"],
-        "Entertainment": ["movie", "film", "music", "celebrity", "actor", "singer", "concert", "album", "game", "netflix"],
-        "Geography": ["country", "city", "continent", "river", "mountain", "ocean", "india", "china", "america", "europe", "kolkata", "delhi"]
-    }
-    
+    """Fallback keyword-based classification using predefined domain keywords"""
     claim_lower = claim_text.lower()
     domain_scores = {}
     
-    for domain, keywords in domains_keywords.items():
+    for domain, keywords in DOMAIN_KEYWORDS.items():
         score = sum(1 for keyword in keywords if keyword in claim_lower)
         if score > 0:
             domain_scores[domain] = score
@@ -847,7 +1167,8 @@ async def classify_claim_domain_fallback(claim_text: str) -> str:
 async def create_claim(
     request: Request,
     claim_data: ClaimCreate,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     # Validate and sanitize inputs
     claim_text = InputValidator.sanitize_text(claim_data.text, max_length=5000)
@@ -864,6 +1185,10 @@ async def create_claim(
         for media_id in claim_data.media_ids:
             media = await db.media.find_one({"id": media_id}, {"_id": 0})
             if media:
+                # Validate that media belongs to current user (prevents accessing others' media)
+                if media.get('user_id') != current_user['id']:
+                    raise HTTPException(status_code=403, detail="You do not have permission to use this media")
+                
                 media_list.append(media)
                 # Read media file for AI evaluation
                 try:
@@ -977,22 +1302,17 @@ async def create_claim(
     
     await db.claims.insert_one(claim)
     
-    # Update user stats and apply reputation boost
-    update_ops = {"$inc": {"contribution_stats.claims_posted": 1}}
-    
+    # Update user stats and apply reputation boost with bounds
+    new_reputation = current_user['reputation_score']
     if reputation_boost > 0:
-        update_ops["$inc"]["reputation_score"] = reputation_boost
+        new_reputation = clamp_reputation(current_user['reputation_score'] + reputation_boost)
     
     await db.users.update_one(
         {"id": current_user['id']},
-        update_ops
+        {"$inc": {"contribution_stats.claims_posted": 1}, "$set": {"reputation_score": new_reputation}}
     )
     
-    # Get updated user reputation
-    updated_user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "reputation_score": 1})
-    new_reputation = updated_user.get('reputation_score', current_user['reputation_score'])
-    
-    return {
+    response_data = {
         "id": claim_id,
         "text": claim_text,
         "domain": ai_domain,
@@ -1007,26 +1327,46 @@ async def create_claim(
         "baseline_evaluation": evaluation_result
     }
 
+    if standard:
+        return standardize_single_response(response_data)
+
+    return response_data
+
 async def build_claim_feed_item(claim: Dict[str, Any]) -> Dict[str, Any]:
     author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
     annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
 
+    # Bulk fetch media instead of one by one (fixes N+1 query)
+    media_ids = claim.get('media_ids', [])
     media_list = []
-    for media_id in claim.get('media_ids', []):
-        media = await db.media.find_one({"id": media_id}, {"_id": 0})
-        if media:
-            media_list.append(media)
+    if media_ids:
+        media_docs = await db.media.find({"id": {"$in": media_ids}}, {"_id": 0}).to_list(length=len(media_ids))
+        # Keep original order from media_ids
+        media_by_id = {m['id']: m for m in media_docs}
+        media_list = [media_by_id[mid] for mid in media_ids if mid in media_by_id]
 
-    post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
+    # Use stored post_score from claim to avoid redundant calculation
+    post_score = claim.get('post_score', 0.0)
 
     top_annotations = sorted(
         annotations,
         key=lambda a: (a.get('helpful_votes', 0), a.get('created_at', '')),
         reverse=True
     )[:2]
+    
+    # Bulk fetch annotation authors (fixes N+1 query)
+    annotation_author_ids = [ann['author_id'] for ann in top_annotations]
+    annotation_authors = {}
+    if annotation_author_ids:
+        author_docs = await db.users.find(
+            {"id": {"$in": annotation_author_ids}},
+            {"_id": 0, "password": 0}
+        ).to_list(length=len(annotation_author_ids))
+        annotation_authors = {u['id']: u for u in author_docs}
+    
     top_annotation_cards = []
     for ann in top_annotations:
-        ann_author = await db.users.find_one({"id": ann['author_id']}, {"_id": 0, "password": 0})
+        ann_author = annotation_authors.get(ann['author_id'])
         top_annotation_cards.append({
             "id": ann['id'],
             "text": ann['text'],
@@ -1044,9 +1384,9 @@ async def build_claim_feed_item(claim: Dict[str, Any]) -> Dict[str, Any]:
         "domain": claim['domain'],
         "confidence_level": claim['confidence_level'],
         "author": {
-            "id": author['id'],
-            "username": author['username'],
-            "reputation_score": author['reputation_score']
+            "id": author.get('id') if author else claim.get('author_id', 'Unknown'),
+            "username": author.get('username') if author else 'Unknown',
+            "reputation_score": author.get('reputation_score', 0) if author else 0
         },
         "media": media_list,
         "post_score": post_score,
@@ -1059,17 +1399,22 @@ async def build_claim_feed_item(claim: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 @api_router.get("/claims")
-async def get_claims(limit: int = 20, offset: int = 0):
+async def get_claims(limit: int = 20, offset: int = 0, standard: bool = False):
+    """Get paginated list of claims"""
     claims = await db.claims.find({}, {"_id": 0}).sort("created_at", -1).skip(offset).limit(limit).to_list(length=limit)
     
     result = []
     for claim in claims:
         result.append(await build_claim_feed_item(claim))
     
+    if standard:
+        total = await db.claims.count_documents({})
+        return standardize_list_response(result, limit, offset, total)
+    
     return result
 
 @api_router.get("/claims/{claim_id}")
-async def get_claim(claim_id: str):
+async def get_claim(claim_id: str, standard: bool = False):
     claim = await db.claims.find_one({"id": claim_id}, {"_id": 0})
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
@@ -1077,25 +1422,27 @@ async def get_claim(claim_id: str):
     author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
     annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
     
+    # Bulk load media (avoids N+1 queries)
+    media_ids = claim.get('media_ids', [])
     media_list = []
-    for media_id in claim.get('media_ids', []):
-        media = await db.media.find_one({"id": media_id}, {"_id": 0})
-        if media:
-            media_list.append(media)
+    if media_ids:
+        media_docs = await db.media.find({"id": {"$in": media_ids}}, {"_id": 0}).to_list(length=len(media_ids))
+        media_by_id = {m['id']: m for m in media_docs}
+        media_list = [media_by_id[mid] for mid in media_ids if mid in media_by_id]
     
-    # Calculate current post score
-    post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
+    # Use stored post_score to avoid redundant calculation
+    post_score = claim.get('post_score', 0.0)
     
-    return {
+    response_data = {
         "id": claim['id'],
         "text": claim['text'],
         "domain": claim['domain'],
         "category": claim.get('category'),
         "confidence_level": claim['confidence_level'],
         "author": {
-            "id": author['id'],
-            "username": author['username'],
-            "reputation_score": author['reputation_score']
+            "id": author.get('id') if author else claim.get('author_id', 'Unknown'),
+            "username": author.get('username') if author else 'Unknown',
+            "reputation_score": author.get('reputation_score', 0) if author else 0
         },
         "media": media_list,
         "post_score": post_score,
@@ -1104,6 +1451,11 @@ async def get_claim(claim_id: str):
         "annotation_count": len(annotations),
         "created_at": claim['created_at']
     }
+
+    if standard:
+        return standardize_single_response(response_data)
+    
+    return response_data
 
 # Annotations
 @api_router.post("/claims/{claim_id}/annotations")
@@ -1144,7 +1496,7 @@ async def create_annotation(
         "id": annotation_id,
         "claim_id": claim_id,
         "author_id": current_user['id'],
-        "author_reputation": current_user.get('reputation_score', 10.0),
+        "author_reputation": current_user.get('reputation_score', DEFAULT_AUTHOR_REPUTATION),
         "text": annotation_text,
         "annotation_type": classified_type,
         "classification_confidence": classification_confidence,
@@ -1190,10 +1542,20 @@ async def create_annotation(
     # Recalculate post score based on new annotations
     all_annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
     
+    # Bulk fetch annotation authors instead of one by one (fixes N+1 query)
+    annotation_author_ids = [ann['author_id'] for ann in all_annotations]
+    annotation_authors = {}
+    if annotation_author_ids:
+        author_docs = await db.users.find(
+            {"id": {"$in": annotation_author_ids}},
+            {"_id": 0}
+        ).to_list(length=len(annotation_author_ids))
+        annotation_authors = {u['id']: u for u in author_docs}
+    
     # Enrich annotations with author data
     enriched_annotations = []
     for ann in all_annotations:
-        author = await db.users.find_one({"id": ann['author_id']}, {"_id": 0})
+        author = annotation_authors.get(ann['author_id'])
         enriched_annotations.append({
             **ann,
             "author": author
@@ -1225,8 +1587,8 @@ async def create_annotation(
     return response_data
 
 @api_router.get("/claims/{claim_id}/annotations")
-async def get_annotations(claim_id: str):
-    annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
+async def get_annotations(claim_id: str, skip: int = 0, limit: int = 1000, standard: bool = False):
+    annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
     
     result = []
     for ann in annotations:
@@ -1253,14 +1615,20 @@ async def get_annotations(claim_id: str):
             "not_helpful_votes": ann['not_helpful_votes'],
             "created_at": ann['created_at']
         })
+
+    if standard:
+        total = await db.annotations.count_documents({"claim_id": claim_id})
+        return standardize_list_response(result, limit, skip, total)
     
     return result
 
 # Vote on annotations
 @api_router.post("/annotations/{annotation_id}/vote")
+@limiter.limit("100/hour")  # Prevent vote spam
 async def vote_annotation(
     annotation_id: str,
     helpful: bool,
+    request: Request,
     current_user = Depends(get_current_user)
 ):
     annotation = await db.annotations.find_one({"id": annotation_id}, {"_id": 0})
@@ -1285,13 +1653,18 @@ async def vote_annotation(
         days_old = (datetime.now(timezone.utc) - annotation_created).days
         
         # Aging well bonus: older annotations that get helpful votes get more reputation
-        # 1 point base + up to 2 bonus points for aging well (maxes at 30 days)
-        time_bonus = min(2.0, days_old / 15.0)
-        reputation_gain = 1.0 + time_bonus
+        # Base reputation gain + up to bonus points for aging well (maxes at specified days)
+        time_bonus = min(VOTE_TIME_BONUS_MAX, days_old / VOTE_TIME_BONUS_DAYS)
+        reputation_gain = VOTE_REPUTATION_GAIN_BASE + time_bonus
+        
+        # Get current reputation and apply bounds
+        author = await db.users.find_one({"id": author_id}, {"_id": 0, "reputation_score": 1})
+        current_rep = author.get('reputation_score', DEFAULT_AUTHOR_REPUTATION) if author else DEFAULT_AUTHOR_REPUTATION
+        new_rep = clamp_reputation(current_rep + reputation_gain)
         
         await db.users.update_one(
             {"id": author_id},
-            {"$inc": {"reputation_score": reputation_gain, "contribution_stats.helpful_votes_received": 1}}
+            {"$set": {"reputation_score": new_rep}, "$inc": {"contribution_stats.helpful_votes_received": 1}}
         )
     else:
         await db.annotations.update_one(
@@ -1302,11 +1675,25 @@ async def vote_annotation(
     # Recalculate claim credibility
     claim_id = annotation['claim_id']
     claim = await db.claims.find_one({"id": claim_id}, {"_id": 0})
+    if not claim:
+        # Claim was deleted - skip recalculation
+        return {"message": "Vote recorded successfully"}
+    
     all_annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
+    
+    # Bulk fetch all annotation authors
+    annotation_author_ids = [ann['author_id'] for ann in all_annotations]
+    annotation_authors = {}
+    if annotation_author_ids:
+        author_docs = await db.users.find(
+            {"id": {"$in": annotation_author_ids}},
+            {"_id": 0}
+        ).to_list(length=len(annotation_author_ids))
+        annotation_authors = {u['id']: u for u in author_docs}
     
     enriched_annotations = []
     for ann in all_annotations:
-        author = await db.users.find_one({"id": ann['author_id']}, {"_id": 0})
+        author = annotation_authors.get(ann['author_id'])
         enriched_annotations.append({
             **ann,
             "author": author
@@ -1390,9 +1777,12 @@ async def get_profile_picture(user_id: str):
 
 # Update user settings
 @api_router.patch("/users/settings")
+@limiter.limit("30/hour")  # Prevent setting spam
 async def update_user_settings(
+    request: Request,
     settings: UserSettingsUpdate,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     updates = {}
     username = settings.username
@@ -1429,7 +1819,7 @@ async def update_user_settings(
         
         # Return updated user data
         updated_user = await db.users.find_one({"id": current_user['id']}, {"_id": 0, "password": 0})
-        return {
+        response_data = {
             "message": "Settings updated successfully",
             "user": {
                 "id": updated_user['id'],
@@ -1439,7 +1829,12 @@ async def update_user_settings(
                 "reputation_score": updated_user['reputation_score']
             }
         }
+        if standard:
+            return standardize_single_response(response_data, message="Settings updated successfully")
+        return response_data
     
+    if standard:
+        return standardize_single_response({"message": "No changes made"}, message="No changes made")
     return {"message": "No changes made"}
 
 # Check username availability and get suggestions
@@ -1506,24 +1901,48 @@ async def get_user_profile(user_id: str):
 
 # Get all user claims
 @api_router.get("/users/{user_id}/claims")
-async def get_user_claims(user_id: str, skip: int = 0, limit: int = 50):
+async def get_user_claims(user_id: str, skip: int = 0, limit: int = 50, standard: bool = False):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     claims = await db.claims.find({"author_id": user_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
     
+    # Bulk fetch all media and annotations needed (fixes N+1 queries)
+    all_media_ids = []
+    claim_ids = []
+    for claim in claims:
+        all_media_ids.extend(claim.get('media_ids', []))
+        claim_ids.append(claim['id'])
+    
+    # Fetch all media at once
+    media_map = {}
+    if all_media_ids:
+        all_media = await db.media.find({"id": {"$in": all_media_ids}}, {"_id": 0}).to_list(length=len(set(all_media_ids)))
+        media_map = {m['id']: m for m in all_media}
+    
+    # Fetch all annotations at once
+    annotations_by_claim = {}
+    if claim_ids:
+        all_annotations = await db.annotations.find(
+            {"claim_id": {"$in": claim_ids}},
+            {"_id": 0}
+        ).to_list(length=10000)
+        for ann in all_annotations:
+            cid = ann['claim_id']
+            if cid not in annotations_by_claim:
+                annotations_by_claim[cid] = []
+            annotations_by_claim[cid].append(ann)
+    
     result = []
     for claim in claims:
         media_list = []
         for media_id in claim.get('media_ids', []):
-            media = await db.media.find_one({"id": media_id}, {"_id": 0})
-            if media:
-                media_list.append(media)
+            if media_id in media_map:
+                media_list.append(media_map[media_id])
         
-        # Get annotations for post score calculation
-        annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
-        post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
+        # Use stored post_score to avoid redundant calculation
+        post_score = claim.get('post_score', 0.0)
         
         result.append({
             "id": claim['id'],
@@ -1535,12 +1954,16 @@ async def get_user_claims(user_id: str, skip: int = 0, limit: int = 50):
             "baseline_evaluation": claim.get('baseline_evaluation'),
             "created_at": claim['created_at']
         })
+
+    if standard:
+        total = await db.claims.count_documents({"author_id": user_id})
+        return standardize_list_response(result, limit, skip, total)
     
     return result
 
 # Get all user annotations
 @api_router.get("/users/{user_id}/annotations")
-async def get_user_annotations(user_id: str, skip: int = 0, limit: int = 50):
+async def get_user_annotations(user_id: str, skip: int = 0, limit: int = 50, standard: bool = False):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1562,13 +1985,20 @@ async def get_user_annotations(user_id: str, skip: int = 0, limit: int = 50):
             "created_at": ann['created_at']
         })
     
+    if standard:
+        total = await db.annotations.count_documents({"author_id": user_id})
+        return standardize_list_response(result, limit, skip, total)
+    
     return result
 
 # Delete claim (hard delete with reputation reversal)
 @api_router.delete("/claims/{claim_id}")
+@limiter.limit("20/hour")  # Prevent deletion spam
 async def delete_claim(
+    request: Request,
     claim_id: str,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     claim = await db.claims.find_one({"id": claim_id}, {"_id": 0})
     if not claim:
@@ -1627,13 +2057,19 @@ async def delete_claim(
     
     logger.info(f"Claim {claim_id} deleted by user {current_user['id']}")
     
-    return {"message": "Claim deleted successfully", "reputation_reversed": reputation_boost}
+    response_data = {"message": "Claim deleted successfully", "reputation_reversed": reputation_boost}
+    if standard:
+        return standardize_single_response(response_data, message="Claim deleted successfully")
+    return response_data
 
 # Delete user account (hard delete)
 @api_router.delete("/users/account")
+@limiter.limit("5/hour")  # Prevent account deletion spam
 async def delete_user_account(
+    request: Request,
     confirmation: str,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     if confirmation != "Delete Account":
         raise HTTPException(status_code=400, detail="Please type 'Delete Account' to confirm deletion")
@@ -1678,8 +2114,11 @@ async def delete_user_account(
         try:
             if is_s3_uri(profile_picture):
                 bucket, key = parse_s3_uri(profile_picture)
-                await s3_delete_object(bucket, key)
-                logger.info(f"Deleted profile picture for user {user_id} from S3")
+                deleted = await s3_delete_object(bucket, key)
+                if deleted:
+                    logger.info(f"Deleted profile picture for user {user_id} from S3")
+                else:
+                    logger.warning(f"Failed to delete profile picture for user {user_id} from S3")
             else:
                 profile_path = Path(profile_picture)
                 if profile_path.exists():
@@ -1700,12 +2139,16 @@ async def delete_user_account(
     # Delete the user
     await db.users.delete_one({"id": user_id})
     
-    return {"message": "Account deleted successfully"}
+    response_data = {"message": "Account deleted successfully"}
+    if standard:
+        return standardize_single_response(response_data, message="Account deleted successfully")
+    return response_data
 
 # Admin media maintenance
 @api_router.post("/admin/media/cleanup")
 async def admin_cleanup_media(
-    admin_key: str = Depends(require_admin_key)
+    admin_key: str = Depends(require_admin_key),
+    standard: bool = False
 ):
     result = await cleanup_orphaned_media(
         db,
@@ -1713,11 +2156,15 @@ async def admin_cleanup_media(
         s3_client=S3_CLIENT,
         s3_bucket=AWS_S3_BUCKET
     )
-    return {"message": "Cleanup completed", "result": result}
+    response_data = {"message": "Cleanup completed", "result": result}
+    if standard:
+        return standardize_single_response(response_data, message="Cleanup completed")
+    return response_data
 
 @api_router.get("/admin/media/stats")
 async def admin_media_stats(
-    admin_key: str = Depends(require_admin_key)
+    admin_key: str = Depends(require_admin_key),
+    standard: bool = False
 ):
     stats = await get_storage_stats(
         db,
@@ -1726,14 +2173,18 @@ async def admin_media_stats(
         s3_bucket=AWS_S3_BUCKET,
         s3_prefix=AWS_S3_MEDIA_PREFIX
     )
-    return {"stats": stats}
+    response_data = {"stats": stats}
+    if standard:
+        return standardize_single_response(response_data)
+    return response_data
 
 # Notifications
 @api_router.get("/notifications")
 async def get_notifications(
     current_user = Depends(get_current_user),
     skip: int = 0,
-    limit: int = 50
+    limit: int = 50,
+    standard: bool = False
 ):
     notifications = await db.notifications.find(
         {"user_id": current_user['id']},
@@ -1746,6 +2197,16 @@ async def get_notifications(
         "read": False
     })
     
+    if standard:
+        total = await db.notifications.count_documents({"user_id": current_user['id']})
+        return standardize_list_response(
+            notifications,
+            limit,
+            skip,
+            total,
+            extra={"unread_count": unread_count}
+        )
+    
     return {
         "notifications": notifications,
         "unread_count": unread_count
@@ -1753,9 +2214,12 @@ async def get_notifications(
 
 # Mark notification as read
 @api_router.patch("/notifications/{notification_id}/read")
+@limiter.limit("60/hour")  # Allow frequent notification updates
 async def mark_notification_read(
+    request: Request,
     notification_id: str,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     result = await db.notifications.update_one(
         {"id": notification_id, "user_id": current_user['id']},
@@ -1765,38 +2229,59 @@ async def mark_notification_read(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
     
-    return {"message": "Notification marked as read"}
+    response_data = {"message": "Notification marked as read"}
+    if standard:
+        return standardize_single_response(response_data, message="Notification marked as read")
+    return response_data
 
 # Mark all notifications as read
 @api_router.patch("/notifications/read-all")
+@limiter.limit("30/hour")  # Prevent notification spam
 async def mark_all_notifications_read(
-    current_user = Depends(get_current_user)
+    request: Request,
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     await db.notifications.update_many(
         {"user_id": current_user['id'], "read": False},
         {"$set": {"read": True}}
     )
     
-    return {"message": "All notifications marked as read"}
+    response_data = {"message": "All notifications marked as read"}
+    if standard:
+        return standardize_single_response(response_data, message="All notifications marked as read")
+    return response_data
 
 # Get unread notification count
 @api_router.get("/notifications/unread-count")
 async def get_unread_notification_count(
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     count = await db.notifications.count_documents({
         "user_id": current_user['id'],
         "read": False
     })
     
-    return {"unread_count": count}
+    response_data = {"unread_count": count}
+    if standard:
+        return standardize_single_response(response_data)
+    return response_data
+
+# CORS configuration - restrict to specific origins
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001')
+if CORS_ORIGINS == '*':
+    logger.warning("CORS_ORIGINS set to '*' - this is not recommended for production. Use specific origins instead.")
+    allowed_origins = ['*']
+else:
+    allowed_origins = [origin.strip() for origin in CORS_ORIGINS.split(',')]
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Security headers middleware
@@ -1881,11 +2366,79 @@ async def initialize_new_collections():
 
 # Thrryv v1 Features
 
+# Search suggestions and trending topics
+@api_router.get("/search/suggestions")
+@limiter.limit("120/hour")
+async def get_search_suggestions(
+    q: str,
+    limit: int = 5,
+    standard: bool = False
+):
+    safe_limit = max(1, min(limit, 10))
+    suggestions = await build_search_suggestions(q, safe_limit)
+
+    if standard:
+        return standardize_list_response(suggestions, safe_limit, 0, len(suggestions))
+
+    return suggestions
+
+@api_router.get("/search/trending")
+@limiter.limit("60/hour")
+async def get_trending_topics(
+    limit: int = 5,
+    days: int = 7,
+    standard: bool = False
+):
+    trending = await build_trending_topics(days, limit)
+
+    if standard:
+        return standardize_list_response(trending, min(max(1, limit), 10), 0, len(trending))
+
+    return [item["topic"] for item in trending]
+
+# Client error logging
+@api_router.post("/logs/client")
+@limiter.limit("120/hour")
+async def log_client_error(
+    request: Request,
+    entry: ClientLogEntry,
+    current_user = Depends(get_current_user_optional),
+    standard: bool = False
+):
+    message = InputValidator.sanitize_text(entry.message, max_length=1000)
+    level = (entry.level or "error").lower()
+    created_at = entry.created_at or datetime.now(timezone.utc).isoformat()
+    context = entry.context if isinstance(entry.context, dict) else None
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "level": level,
+        "message": message,
+        "source": entry.source,
+        "url": entry.url,
+        "context": context,
+        "created_at": created_at,
+        "user_id": current_user.get("id") if current_user else None,
+        "user_agent": request.headers.get("user-agent"),
+        "ip": request.client.host if request.client else None
+    }
+
+    if db:
+        await db.client_logs.insert_one(record)
+    else:
+        logger.warning(f"Client log (no db): {record}")
+
+    response_data = {"message": "Log recorded"}
+    if standard:
+        return standardize_single_response(response_data, message="Log recorded")
+    return response_data
+
 # AI-Powered Content Discovery
 @api_router.post("/discover")
 async def discover_content(
     search_request: SearchQueryRequest,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     """
     AI-powered content discovery based on user intent.
@@ -1988,7 +2541,7 @@ async def discover_content(
                 }
             })
         
-        return {
+        response_data = {
             "search_intent": {
                 "query": search_intent.core_query,
                 "domains": search_intent.domains,
@@ -1999,6 +2552,11 @@ async def discover_content(
             "claims": claim_feed_items,
             "note": "Discovery uses AI signals, not truth labels. Explore different perspectives."
         }
+
+        if standard:
+            return standardize_single_response(response_data)
+        
+        return response_data
     
     except Exception as e:
         logger.error(f"Discovery error: {e}")
@@ -2007,7 +2565,8 @@ async def discover_content(
 @api_router.post("/discover/feed")
 async def discover_feed(
     request: FeedDiscoverRequest,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    standard: bool = False
 ):
     """
     Personalized feed discovery using stored user interests.
@@ -2049,12 +2608,15 @@ async def discover_feed(
                 break
 
         if not expanded_domains:
-            return {
+            response_data = {
                 "query": "top",
                 "interests": [],
                 "claims": await build_top_claims(request.limit),
                 "note": "Top posts shown while interests are still learning."
             }
+            if standard:
+                return standardize_single_response(response_data)
+            return response_data
 
         query = build_interest_query(expanded_domains)
 
@@ -2084,12 +2646,15 @@ async def discover_feed(
         )
 
         if not discovered:
-            return {
+            response_data = {
                 "query": query,
                 "interests": expanded_domains,
                 "claims": await build_top_claims(request.limit),
                 "note": "Top posts shown while personalized feed warms up."
             }
+            if standard:
+                return standardize_single_response(response_data)
+            return response_data
 
         discovered = discovery._apply_diversity_ranking(discovered, request.diversity_preference)
         discovered = discovery._apply_emergent_ranking(discovered)
@@ -2127,12 +2692,17 @@ async def discover_feed(
         except Exception as e:
             logger.warning(f"Failed to update user interests for feed: {e}")
 
-        return {
+        response_data = {
             "query": query,
             "interests": expanded_domains,
             "claims": claim_feed_items,
             "note": "Feed is personalized using your interests with light topic expansion."
         }
+
+        if standard:
+            return standardize_single_response(response_data)
+
+        return response_data
 
     except Exception as e:
         logger.error(f"Feed discovery error: {e}")

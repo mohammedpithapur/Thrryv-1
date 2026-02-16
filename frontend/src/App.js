@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -18,6 +18,35 @@ import Notifications from "./pages/Notifications";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+function AppRoutes({ user, loading, handleLogin, handleUserUpdate, handleLogout }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      {/* Welcome page without navbar */}
+      <Route path="/" element={<Welcome />} />
+      
+      {/* Pages with navbar - each wrapped in its own ErrorBoundary */}
+      <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Feed user={user} /></ErrorBoundary></>} />
+      <Route path="/posts/:postId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
+      <Route path="/create-post" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
+      <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
+      <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
+      <Route path="/login" element={<ErrorBoundary><Login onLogin={handleLogin} /></ErrorBoundary>} />
+      <Route path="/register" element={<ErrorBoundary><Register onLogin={handleLogin} /></ErrorBoundary>} />
+      <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><UserProfile currentUser={user} onLogout={handleLogout} /></ErrorBoundary></>} />
+      <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ErrorBoundary></>} />
+      <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Notifications /></ErrorBoundary></>} />
+    </Routes>
+  );
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -58,47 +87,30 @@ function App() {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
     <ThemeProvider>
       <ErrorBoundary>
         <div className="App min-h-screen bg-background">
           <BrowserRouter>
-            <Routes>
-              {/* Welcome page without navbar */}
-              <Route path="/" element={<Welcome />} />
-              
-              {/* Pages with navbar - each wrapped in its own ErrorBoundary */}
-              <Route path="/feed" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Feed user={user} /></ErrorBoundary></>} />
-              <Route path="/posts/:postId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
-              <Route path="/create-post" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
-              <Route path="/claims/:claimId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ClaimDetail user={user} /></ErrorBoundary></>} />
-              <Route path="/create-claim" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><CreateClaim user={user} /></ErrorBoundary></>} />
-              <Route path="/login" element={<ErrorBoundary><Login onLogin={handleLogin} /></ErrorBoundary>} />
-              <Route path="/register" element={<ErrorBoundary><Register onLogin={handleLogin} /></ErrorBoundary>} />
-              <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><UserProfile currentUser={user} onLogout={handleLogout} /></ErrorBoundary></>} />
-              <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ErrorBoundary></>} />
-              <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Notifications /></ErrorBoundary></>} />
-            </Routes>
+            <AppRoutesWrapper user={user} loading={loading} handleLogin={handleLogin} handleUserUpdate={handleUserUpdate} />
             <Toaster position="top-center" />
           </BrowserRouter>
         </div>
       </ErrorBoundary>
     </ThemeProvider>
   );
+}
+
+function AppRoutesWrapper({ user, loading, handleLogin, handleUserUpdate }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+  };
+
+  return <AppRoutes user={user} loading={loading} handleLogin={handleLogin} handleUserUpdate={handleUserUpdate} handleLogout={handleLogout} />;
 }
 
 export default App;

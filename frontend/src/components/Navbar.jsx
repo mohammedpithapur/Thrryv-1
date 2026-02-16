@@ -27,11 +27,13 @@ const Navbar = ({ user, onLogout }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API}/notifications/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000
       });
-      setUnreadCount(response.data.unread_count);
+      setUnreadCount(response.data.unread_count || 0);
     } catch (err) {
-      console.error('Failed to fetch notification count');
+      // Silently fail - doesn't impact UX to not show count
+      setUnreadCount(0);
     }
   };
 

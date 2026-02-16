@@ -57,7 +57,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
         setUsernameAvailable(response.data.available);
         setUsernameSuggestions(response.data.suggestions || []);
       } catch (err) {
-        console.error('Failed to check username');
+        setUsernameAvailable(false);
       } finally {
         setCheckingUsername(false);
       }

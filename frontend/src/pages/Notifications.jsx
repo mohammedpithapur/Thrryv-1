@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Bell, CheckCheck, MessageSquare, ThumbsUp, Info } from 'lucide-react';
+import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -20,12 +21,19 @@ const Notifications = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API}/notifications`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
       });
       setNotifications(response.data.notifications);
       setUnreadCount(response.data.unread_count);
     } catch (err) {
-      console.error('Failed to fetch notifications');
+      const errorMsg = err.response?.data?.detail || 'Failed to fetch notifications';
+      setNotifications([]);
+      setUnreadCount(0);
+      // Only show toast on timeout or network errors, not on auth failures
+      if (err.code !== 'ERR_BAD_REQUEST' && err.response?.status !== 401) {
+        toast.error(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -42,7 +50,7 @@ const Notifications = () => {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Failed to mark notification as read');
+      // Silently fail - will refresh on next fetch
     }
   };
 
@@ -55,7 +63,7 @@ const Notifications = () => {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (err) {
-      console.error('Failed to mark all as read');
+      // Silently fail - will refresh on next fetch
     }
   };
 

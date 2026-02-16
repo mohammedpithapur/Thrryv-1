@@ -1,5 +1,9 @@
 import React from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -29,7 +33,24 @@ class ErrorBoundary extends React.Component {
 
     // In production, you would send this to an error reporting service
     if (process.env.NODE_ENV === 'production') {
-      // Example: logErrorToService(error, errorInfo);
+      axios.post(
+        `${API}/logs/client`,
+        {
+          level: 'error',
+          message: error?.message || 'Unknown client error',
+          source: 'ErrorBoundary',
+          url: window.location.href,
+          context: {
+            name: error?.name,
+            stack: error?.stack,
+            componentStack: errorInfo?.componentStack
+          },
+          created_at: new Date().toISOString()
+        },
+        { timeout: 5000 }
+      ).catch(() => {
+        // Ignore logging failures to avoid recursive errors
+      });
     }
   }
 

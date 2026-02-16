@@ -3,6 +3,7 @@ import axios from 'axios';
 import ClaimCard from '../components/ClaimCard';
 import { Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,13 +35,14 @@ const Feed = ({ user }) => {
     const hasQuery = Boolean(searchQuery && searchQuery.trim().length > 0);
 
     if (!hasAuth) {
-      axios.get(`${API}/claims`)
+      axios.get(`${API}/claims`, { timeout: 10000 })
         .then(response => {
           setClaims(response.data);
           setLoading(false);
         })
-        .catch(() => {
-          setError('Failed to load posts');
+        .catch((err) => {
+          const message = err.response?.data?.detail || 'Failed to load posts';
+          setError(message);
           setLoading(false);
         });
       return;
@@ -56,14 +58,15 @@ const Feed = ({ user }) => {
           diversity_preference: 0.35,
           limit: 20
         },
-        { headers }
+        { headers, timeout: 15000 }
       )
         .then(response => {
           setClaims(response.data?.claims || []);
           setLoading(false);
         })
-        .catch(() => {
-          setError('Failed to load posts');
+        .catch((err) => {
+          const message = err.response?.data?.detail || 'Failed to load posts';
+          setError(message);
           setLoading(false);
         });
       return;
@@ -72,14 +75,15 @@ const Feed = ({ user }) => {
     axios.post(
       `${API}/discover/feed`,
       { limit: 20, diversity_preference: 0.35 },
-      { headers }
+      { headers, timeout: 15000 }
     )
       .then(response => {
         setClaims(response.data?.claims || []);
         setLoading(false);
       })
-      .catch(() => {
-        setError('Failed to load posts');
+      .catch((err) => {
+        const message = err.response?.data?.detail || 'Failed to load posts';
+        setError(message);
         setLoading(false);
       });
   };

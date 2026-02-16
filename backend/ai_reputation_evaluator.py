@@ -310,7 +310,9 @@ Remember: Do NOT judge truth/correctness. Only assess content quality and value.
                 if response.startswith('json'):
                     response = response[4:]
             return json.loads(response)
-        except:
+        except (json.JSONDecodeError, IndexError, ValueError) as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to parse text evaluation response: {e}. Response was: {response[:100]}")
             return self._default_text_scores()
     
     def _parse_media_response(self, response: str) -> Dict[str, Any]:
@@ -323,7 +325,9 @@ Remember: Do NOT judge truth/correctness. Only assess content quality and value.
                 if response.startswith('json'):
                     response = response[4:]
             return json.loads(response)
-        except:
+        except (json.JSONDecodeError, IndexError, ValueError) as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to parse text evaluation response: {e}. Response was: {response[:100]}")
             return self._default_media_scores()
     
     def _default_text_scores(self) -> Dict[str, Any]:

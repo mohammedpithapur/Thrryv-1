@@ -17,17 +17,28 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
 
   // Load recent searches from localStorage
   useEffect(() => {
-    const recent = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    setRecentSearches(recent.slice(0, 5));
+    try {
+      const stored = localStorage.getItem('recentSearches');
+      const recent = stored ? JSON.parse(stored) : [];
+      setRecentSearches(Array.isArray(recent) ? recent.slice(0, 5) : []);
+    } catch (e) {
+      console.warn('Failed to load recent searches from localStorage:', e);
+      setRecentSearches([]);
+    }
     
-    // Load trending topics (mock data - replace with actual API call)
-    setTrendingTopics([
-      'Climate Change',
-      'Technology',
-      'Healthcare',
-      'Economics',
-      'Education'
-    ]);
+    const loadTrendingTopics = async () => {
+      try {
+        const response = await axios.get(`${API}/search/trending`, { timeout: 5000 });
+        const topics = Array.isArray(response.data)
+          ? response.data
+          : (response.data?.data || []).map((item) => item.topic);
+        setTrendingTopics(topics.slice(0, 5));
+      } catch (error) {
+        setTrendingTopics([]);
+      }
+    };
+
+    loadTrendingTopics();
   }, []);
 
   // Sync external value (e.g., from URL query)
@@ -61,15 +72,19 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
       }
 
       try {
-        // Mock suggestions - replace with actual API call
-        const mockSuggestions = [
-          { type: 'post', text: `Posts about "${searchTerm}"` },
-          { type: 'user', text: `Users discussing "${searchTerm}"` },
-          { type: 'topic', text: `Topic: ${searchTerm}` }
-        ];
-        setSuggestions(mockSuggestions);
+        const response = await axios.get(`${API}/search/suggestions`, {
+          params: { q: searchTerm, limit: 5 },
+          timeout: 5000
+        });
+        const rawSuggestions = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data || [];
+        const normalizedSuggestions = rawSuggestions.map((item) =>
+          typeof item === 'string' ? { type: 'topic', text: item } : item
+        );
+        setSuggestions(normalizedSuggestions);
       } catch (error) {
-        console.error('Failed to fetch suggestions:', error);
+        setSuggestions([]);
       }
     };
 

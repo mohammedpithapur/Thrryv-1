@@ -370,7 +370,10 @@ Respond ONLY with JSON:
             if start >= 0 and end > start:
                 try:
                     return json.loads(response[start:end])
-                except:
+                except (json.JSONDecodeError, ValueError) as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.debug(f"Failed to extract JSON from originality response: {e}")
                     pass
         
         return None

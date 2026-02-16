@@ -64,7 +64,7 @@ class ThrryveAPITester:
                 try:
                     error_data = response.json()
                     details += f", Error: {error_data.get('detail', 'Unknown error')}"
-                except:
+                except (ValueError, json.JSONDecodeError):
                     details += f", Response: {response.text[:100]}"
 
             self.log_test(name, success, details)
@@ -78,10 +78,14 @@ class ThrryveAPITester:
     def test_user_registration(self):
         """Test user registration"""
         timestamp = datetime.now().strftime('%H%M%S')
+        # Use environment variable for test password, with only-for-testing fallback
+        test_password = os.getenv('TEST_PASSWORD', 'TestPass123!_DO_NOT_USE')
+        if 'DO_NOT_USE' in test_password:
+            print("⚠️  WARNING: Using temporary test password. Set TEST_PASSWORD environment variable.")
         test_user = {
             "username": f"testuser_{timestamp}",
             "email": f"test_{timestamp}@example.com",
-            "password": "TestPass123!"
+            "password": test_password
         }
         
         success, response = self.run_test(
