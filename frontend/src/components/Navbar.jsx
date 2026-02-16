@@ -12,6 +12,7 @@ const Navbar = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const isFeedPage = location.pathname.startsWith('/feed');
 
   useEffect(() => {
     if (user) {
@@ -47,7 +48,7 @@ const Navbar = ({ user, onLogout }) => {
 
   return (
     <>
-      <nav data-testid="navbar" className="border-b border-border bg-card sticky top-0 z-50">
+      <nav data-testid="navbar" className="border-b border-border bg-card/90 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
           <div className="flex items-center justify-between gap-4">
             <Link to="/feed" className="flex items-center gap-2 md:gap-3 shrink-0">
@@ -55,27 +56,32 @@ const Navbar = ({ user, onLogout }) => {
               <span className="playfair text-xl md:text-2xl font-bold tracking-tight">Thrryv</span>
             </Link>
 
-            {/* Desktop Search */}
-            <div className="hidden md:flex flex-1 max-w-xl">
-              <SearchBar
-                placeholder="Search posts, topics, or keywords..."
-                onSearch={handleSearch}
-                value={new URLSearchParams(location.search).get('q') || ''}
-              />
+            {/* Search */}
+            <div className="flex-1 flex justify-end md:justify-center">
+              <div className="w-full max-w-xl md:max-w-md">
+                <SearchBar
+                  compact
+                  placeholder="Search posts, topics, or keywords..."
+                  onSearch={handleSearch}
+                  value={new URLSearchParams(location.search).get('q') || ''}
+                />
+              </div>
             </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-4 shrink-0">
               {user ? (
                 <>
-                  <button
-                    data-testid="create-post-btn"
-                    onClick={() => navigate('/create-post')}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm font-medium text-sm transition-colors"
-                  >
-                    <PlusCircle size={18} strokeWidth={1.5} />
-                    New Post
-                  </button>
+                  {isFeedPage && (
+                    <button
+                      data-testid="create-post-btn"
+                      onClick={() => navigate('/create-post')}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-medium text-sm transition-colors"
+                    >
+                      <PlusCircle size={18} strokeWidth={1.5} />
+                      New Post
+                    </button>
+                  )}
                   <button
                     data-testid="notifications-btn"
                     onClick={() => navigate('/notifications')}
@@ -145,19 +151,11 @@ const Navbar = ({ user, onLogout }) => {
             </div>
           </div>
 
-          {/* Mobile Search */}
-          <div className="md:hidden mt-3">
-            <SearchBar
-              placeholder="Search posts, topics, or keywords..."
-              onSearch={handleSearch}
-              value={new URLSearchParams(location.search).get('q') || ''}
-            />
-          </div>
         </div>
       </nav>
 
       {/* Mobile Floating Action Button for New Post */}
-      {user && (
+      {user && isFeedPage && (
         <button
           data-testid="mobile-create-post-fab"
           onClick={() => navigate('/create-post')}

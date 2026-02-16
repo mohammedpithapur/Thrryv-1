@@ -12,6 +12,7 @@ const VideoPlayer = ({
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     if (autoPlay && videoRef.current) {
@@ -49,6 +50,10 @@ const VideoPlayer = ({
     }
   };
 
+  const handleVideoError = () => {
+    setHasError(true);
+  };
+
   const isContain = fit === 'contain';
   const videoClassName = screenFit
     ? isContain
@@ -76,14 +81,21 @@ const VideoPlayer = ({
         loop
         playsInline
         onTimeUpdate={handleTimeUpdate}
+        onError={handleVideoError}
       />
       
       {/* Pause Icon Overlay */}
-      {!isPlaying && (
+      {!isPlaying && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-20 h-20 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center">
             <Pause size={40} className="text-black" fill="black" />
           </div>
+        </div>
+      )}
+
+      {hasError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-sm px-4 text-center">
+          This video format is not supported. Try MP4 (H.264 + AAC).
         </div>
       )}
 

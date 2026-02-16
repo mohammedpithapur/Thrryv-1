@@ -5,13 +5,15 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefined }) => {
+const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefined, compact = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [trendingTopics, setTrendingTopics] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
+  const [isOpen, setIsOpen] = useState(!compact);
   const searchRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -40,6 +42,9 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowSuggestions(false);
+        if (compact && !searchTerm.trim()) {
+          setIsOpen(false);
+        }
       }
     };
 
@@ -75,6 +80,12 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
     return () => clearTimeout(debounce);
   }, [searchTerm]);
 
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
   const handleSearch = (term) => {
     const normalized = term.trim();
     if (normalized) {
@@ -88,6 +99,9 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
       onSearch(normalized);
     }
     setShowSuggestions(false);
+    if (compact && !normalized) {
+      setIsOpen(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -95,48 +109,80 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
     handleSearch(searchTerm);
   };
 
+  const showInput = !compact || isOpen;
+
   return (
     <div ref={searchRef} className="relative w-full max-w-2xl">
-      {/* Search Input */}
-      <form onSubmit={handleSubmit} className="relative">
-        <div className="relative">
-          <Search 
-            size={20} 
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground" 
-          />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => {
-              const next = e.target.value;
-              setSearchTerm(next);
-              if (!next.trim()) {
-                handleSearch('');
+      <div className={compact ? "flex items-center justify-end gap-2" : ""}>
+        {compact && (
+          <button
+            type="button"
+            aria-label={showInput ? "Close search" : "Open search"}
+            onClick={() => {
+              if (showInput) {
+                setIsOpen(false);
+                setShowSuggestions(false);
+              } else {
+                setIsOpen(true);
               }
             }}
-            onFocus={() => setShowSuggestions(true)}
-            placeholder={placeholder}
-            className="w-full pl-12 pr-10 py-3 border border-border rounded-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {searchTerm.trim().length > 0 && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => {
-                setSearchTerm('');
-                handleSearch('');
-                setShowSuggestions(false);
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </form>
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-background/90 hover:bg-secondary transition-colors"
+          >
+            <Search size={18} className="text-muted-foreground" />
+          </button>
+        )}
+
+        {showInput && (
+          <form
+            onSubmit={handleSubmit}
+            className={compact ? "relative w-56 sm:w-64" : "relative w-full"}
+          >
+            <div className="relative">
+              <Search 
+                size={18} 
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" 
+              />
+              <input
+                ref={inputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setSearchTerm(next);
+                  if (!next.trim()) {
+                    handleSearch('');
+                  }
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder={placeholder}
+                className="w-full pl-10 pr-10 py-2.5 border border-border rounded-full bg-background/95 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+              />
+              {(searchTerm.trim().length > 0 || compact) && (
+                <button
+                  type="button"
+                  aria-label={searchTerm.trim().length > 0 ? "Clear search" : "Close search"}
+                  onClick={() => {
+                    if (searchTerm.trim().length > 0) {
+                      setSearchTerm('');
+                      handleSearch('');
+                    }
+                    setShowSuggestions(false);
+                    if (compact) {
+                      setIsOpen(false);
+                    }
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+      </div>
 
       {/* Suggestions Dropdown */}
-      {showSuggestions && (
+      {showSuggestions && showInput && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-sm shadow-lg z-50 max-h-[400px] overflow-y-auto">
           {/* Search Suggestions */}
           {searchTerm.trim().length >= 2 && suggestions.length > 0 && (
