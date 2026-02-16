@@ -135,7 +135,7 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
         {showInput && (
           <form
             onSubmit={handleSubmit}
-            className={compact ? "relative w-56 sm:w-64" : "relative w-full"}
+            className={compact ? "relative w-full sm:w-64" : "relative w-full"}
           >
             <div className="relative">
               <Search 
