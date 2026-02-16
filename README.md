@@ -70,6 +70,24 @@ Create a .env in frontend/ with:
 REACT_APP_BACKEND_URL=http://127.0.0.1:8000
 ```
 
+Create a .env in backend/ with:
+
+```bash
+MONGO_URL=mongodb://localhost:27017/thrryv
+JWT_SECRET=change-me
+
+# AWS S3 (free tier)
+AWS_S3_BUCKET=your-bucket-name
+AWS_REGION=us-east-1
+AWS_S3_MEDIA_PREFIX=media/
+AWS_S3_PROFILE_PREFIX=profiles/
+AWS_S3_PRESIGN_EXPIRES=3600
+
+# AWS credentials (local/dev)
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+```
+
 ## API overview
 
 - GET /api/claims: list posts

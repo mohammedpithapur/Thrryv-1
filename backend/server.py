@@ -11,7 +11,7 @@ except ImportError:
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -30,6 +30,8 @@ import requests
 import io
 from enum import Enum
 import asyncio
+import tempfile
+import boto3
 
 # Import AI Reputation Evaluator
 from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
@@ -109,6 +111,91 @@ security = HTTPBearer()
 # File upload directory
 UPLOAD_DIR = ROOT_DIR / 'uploads'
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET')
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_S3_MEDIA_PREFIX = os.environ.get('AWS_S3_MEDIA_PREFIX', 'media/')
+AWS_S3_PROFILE_PREFIX = os.environ.get('AWS_S3_PROFILE_PREFIX', 'profiles/')
+AWS_S3_PRESIGN_EXPIRES = int(os.environ.get('AWS_S3_PRESIGN_EXPIRES', '3600'))
+
+def normalize_s3_prefix(prefix: str) -> str:
+    if not prefix:
+        return ''
+    return prefix if prefix.endswith('/') else f"{prefix}/"
+
+AWS_S3_MEDIA_PREFIX = normalize_s3_prefix(AWS_S3_MEDIA_PREFIX)
+AWS_S3_PROFILE_PREFIX = normalize_s3_prefix(AWS_S3_PROFILE_PREFIX)
+
+USE_S3 = bool(AWS_S3_BUCKET)
+
+def get_s3_client():
+    if not USE_S3:
+        return None
+    return boto3.client('s3', region_name=AWS_REGION)
+
+S3_CLIENT = get_s3_client()
+
+def is_s3_uri(path_value: Optional[str]) -> bool:
+    return isinstance(path_value, str) and path_value.startswith('s3://')
+
+def parse_s3_uri(uri: str) -> tuple[str, str]:
+    stripped = uri[5:]
+    parts = stripped.split('/', 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError('Invalid S3 URI')
+    return parts[0], parts[1]
+
+async def s3_upload_file(file_path: str, key: str, content_type: str) -> str:
+    if not S3_CLIENT or not AWS_S3_BUCKET:
+        raise HTTPException(status_code=500, detail='S3 storage not configured')
+    await asyncio.to_thread(
+        S3_CLIENT.upload_file,
+        file_path,
+        AWS_S3_BUCKET,
+        key,
+        ExtraArgs={'ContentType': content_type}
+    )
+    return f"s3://{AWS_S3_BUCKET}/{key}"
+
+async def s3_generate_presigned_url(bucket: str, key: str) -> str:
+    if not S3_CLIENT:
+        raise HTTPException(status_code=500, detail='S3 storage not configured')
+    return await asyncio.to_thread(
+        S3_CLIENT.generate_presigned_url,
+        'get_object',
+        Params={'Bucket': bucket, 'Key': key},
+        ExpiresIn=AWS_S3_PRESIGN_EXPIRES
+    )
+
+async def s3_delete_object(bucket: str, key: str) -> None:
+    if not S3_CLIENT:
+        return
+    await asyncio.to_thread(S3_CLIENT.delete_object, Bucket=bucket, Key=key)
+
+async def load_media_bytes(media: Dict[str, Any]) -> Optional[bytes]:
+    file_path = media.get('file_path')
+    if not file_path:
+        return None
+    if is_s3_uri(file_path):
+        if not S3_CLIENT:
+            return None
+        try:
+            bucket, key = parse_s3_uri(file_path)
+            response = await asyncio.to_thread(S3_CLIENT.get_object, Bucket=bucket, Key=key)
+            body = response.get('Body')
+            if not body:
+                return None
+            return await asyncio.to_thread(body.read)
+        except Exception as e:
+            logging.warning(f"Could not read media from S3: {e}")
+            return None
+    try:
+        path = Path(file_path)
+        if path.exists():
+            return path.read_bytes()
+    except Exception as e:
+        logging.warning(f"Could not read media from disk: {e}")
+    return None
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -196,6 +283,10 @@ class SearchQueryRequest(BaseModel):
     diversity_preference: Optional[float] = 0.3
     limit: Optional[int] = 20
 
+class FeedDiscoverRequest(BaseModel):
+    limit: Optional[int] = 20
+    diversity_preference: Optional[float] = 0.35
+
 class ContentFeedbackRequest(BaseModel):
     claim_id: str
 
@@ -234,6 +325,104 @@ def decode_jwt_token(token: str) -> Optional[str]:
         return None
     except jwt.InvalidTokenError:
         return None
+
+RELATED_DOMAIN_MAP = {
+    "Technology": ["Science", "Economics"],
+    "Science": ["Health", "Technology"],
+    "Health": ["Science", "Society"],
+    "Politics": ["Economics", "Society"],
+    "Economics": ["Politics", "Technology"],
+    "Environment": ["Science", "Politics"],
+    "Society": ["Politics", "Health"],
+    "History": ["Politics", "Society"],
+    "Entertainment": ["Society", "Technology"],
+    "Sports": ["Health", "Society"],
+    "Geography": ["History", "Environment"]
+}
+
+def normalize_interest_domain(domain: Optional[str]) -> Optional[str]:
+    if not domain:
+        return None
+    return domain.strip()
+
+def extract_claim_domain(claim: Dict[str, Any]) -> Optional[str]:
+    domain = claim.get('domain')
+    if domain:
+        return normalize_interest_domain(domain)
+    category = claim.get('category') or {}
+    primary_path = category.get('primary_path') if isinstance(category, dict) else None
+    if primary_path and isinstance(primary_path, list) and primary_path:
+        return normalize_interest_domain(primary_path[0])
+    return None
+
+async def update_user_interests(
+    user_id: str,
+    query: Optional[str],
+    intent_domains: List[str],
+    claim_domains: List[str],
+    query_weight: int = 3,
+    claim_weight: int = 1
+):
+    if not db:
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    inc_ops: Dict[str, int] = {}
+
+    for domain in intent_domains:
+        normalized = normalize_interest_domain(domain)
+        if not normalized:
+            continue
+        key = f"interests.{normalized}"
+        inc_ops[key] = inc_ops.get(key, 0) + query_weight
+
+    for domain in claim_domains:
+        normalized = normalize_interest_domain(domain)
+        if not normalized:
+            continue
+        key = f"interests.{normalized}"
+        inc_ops[key] = inc_ops.get(key, 0) + claim_weight
+
+    update_doc: Dict[str, Any] = {
+        "$set": {"updated_at": now_iso},
+        "$setOnInsert": {"user_id": user_id, "created_at": now_iso}
+    }
+
+    if inc_ops:
+        update_doc["$inc"] = inc_ops
+
+    if query:
+        update_doc["$push"] = {
+            "recent_queries": {
+                "$each": [{"query": query, "created_at": now_iso}],
+                "$slice": -20
+            }
+        }
+
+    await db.user_interests.update_one({"user_id": user_id}, update_doc, upsert=True)
+
+def build_interest_query(domains: List[str]) -> str:
+    if not domains:
+        return "Recent posts about varied topics"
+    return f"Posts about {', '.join(domains)}"
+
+async def enrich_claim_for_discovery(claim: Dict[str, Any]) -> Dict[str, Any]:
+    author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
+    annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
+
+    post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
+    impact_score = min(100, max(0, (post_score / 15.0) * 100))
+
+    claim['impact_score'] = impact_score
+    claim['author_reputation'] = author.get('reputation_score', 10.0) if author else 10.0
+    claim['author_standing'] = author.get('user_standing_score', 1.0) if author else 1.0
+
+    helpful_votes_total = sum(a.get('helpful_votes', 0) for a in annotations)
+    controversial_votes_total = sum(a.get('not_helpful_votes', 0) for a in annotations)
+    claim['helpful_votes_total'] = helpful_votes_total
+    claim['controversial_votes_total'] = controversial_votes_total
+    claim['annotation_count'] = len(annotations)
+
+    return claim
 
 def require_admin_key(x_admin_key: Optional[str] = Header(None)):
     if not ADMIN_API_KEY:
@@ -456,20 +645,36 @@ async def upload_media(
     
     file_id = str(uuid.uuid4())
     file_ext = Path(file.filename).suffix.lower()
+    s3_key = None
     
     # Sanitize extension
     allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.mp4', '.webm', '.ogg', '.mov']
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="Invalid file extension")
     
-    file_path = UPLOAD_DIR / f"{file_id}{file_ext}"
-    
-    # Save file
-    with open(file_path, 'wb') as f:
-        f.write(contents)
-    
-    # Detect AI-generated content
-    is_ai, confidence = await detect_ai_content(str(file_path), file.content_type)
+    temp_path = None
+    if USE_S3:
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
+                temp_file.write(contents)
+                temp_path = temp_file.name
+            # Detect AI-generated content before upload
+            is_ai, confidence = await detect_ai_content(temp_path, file.content_type)
+            s3_key = f"{AWS_S3_MEDIA_PREFIX}{file_id}{file_ext}"
+            file_path = await s3_upload_file(temp_path, s3_key, file.content_type)
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    logger.warning(f"Failed to remove temp file {temp_path}")
+    else:
+        file_path = UPLOAD_DIR / f"{file_id}{file_ext}"
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(contents)
+        # Detect AI-generated content
+        is_ai, confidence = await detect_ai_content(str(file_path), file.content_type)
     
     media = {
         "id": file_id,
@@ -478,6 +683,10 @@ async def upload_media(
         "file_type": file.content_type,
         "is_ai_generated": is_ai,
         "ai_confidence": confidence,
+        "storage": "s3" if USE_S3 else "local",
+        "s3_bucket": AWS_S3_BUCKET if USE_S3 else None,
+        "s3_key": s3_key if USE_S3 else None,
+        "s3_region": AWS_REGION if USE_S3 else None,
         "uploaded_by": current_user['id'],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -502,6 +711,11 @@ async def get_media(media_id: str):
         raise HTTPException(status_code=404, detail="Media not found")
     
     file_path = media['file_path']
+    if is_s3_uri(file_path):
+        bucket, key = parse_s3_uri(file_path)
+        signed_url = await s3_generate_presigned_url(bucket, key)
+        return RedirectResponse(signed_url, status_code=302)
+    
     if not Path(file_path).exists():
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -652,10 +866,8 @@ async def create_claim(
                 media_list.append(media)
                 # Read media file for AI evaluation
                 try:
-                    file_path = media.get('file_path')
-                    if file_path and Path(file_path).exists():
-                        with open(file_path, 'rb') as f:
-                            media_data = f.read()
+                    media_data = await load_media_bytes(media)
+                    if media_data:
                         media_files_for_eval.append({
                             'data': media_data,
                             'type': media.get('file_type', 'image/jpeg')
@@ -794,63 +1006,64 @@ async def create_claim(
         "baseline_evaluation": evaluation_result
     }
 
+async def build_claim_feed_item(claim: Dict[str, Any]) -> Dict[str, Any]:
+    author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
+    annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
+
+    media_list = []
+    for media_id in claim.get('media_ids', []):
+        media = await db.media.find_one({"id": media_id}, {"_id": 0})
+        if media:
+            media_list.append(media)
+
+    post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
+
+    top_annotations = sorted(
+        annotations,
+        key=lambda a: (a.get('helpful_votes', 0), a.get('created_at', '')),
+        reverse=True
+    )[:2]
+    top_annotation_cards = []
+    for ann in top_annotations:
+        ann_author = await db.users.find_one({"id": ann['author_id']}, {"_id": 0, "password": 0})
+        top_annotation_cards.append({
+            "id": ann['id'],
+            "text": ann['text'],
+            "annotation_type": ann.get('annotation_type', 'context'),
+            "helpful_votes": ann.get('helpful_votes', 0),
+            "author": {
+                "id": ann_author['id'] if ann_author else ann['author_id'],
+                "username": ann_author.get('username') if ann_author else 'Unknown'
+            }
+        })
+
+    return {
+        "id": claim['id'],
+        "text": claim['text'],
+        "domain": claim['domain'],
+        "confidence_level": claim['confidence_level'],
+        "author": {
+            "id": author['id'],
+            "username": author['username'],
+            "reputation_score": author['reputation_score']
+        },
+        "media": media_list,
+        "post_score": post_score,
+        "credibility_score": post_score,
+        "top_annotations": top_annotation_cards,
+        "baseline_evaluation": claim.get('baseline_evaluation'),
+        "category": claim.get('category'),
+        "annotation_count": len(annotations),
+        "created_at": claim['created_at']
+    }
+
 @api_router.get("/claims")
 async def get_claims(limit: int = 20, offset: int = 0):
     claims = await db.claims.find({}, {"_id": 0}).sort("created_at", -1).skip(offset).limit(limit).to_list(length=limit)
     
     result = []
     for claim in claims:
-        author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
-        annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
-        
-        media_list = []
-        for media_id in claim.get('media_ids', []):
-            media = await db.media.find_one({"id": media_id}, {"_id": 0})
-            if media:
-                media_list.append(media)
-        
-        # Calculate current post score
-        post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
-
-        # Top annotations (for feed preview)
-        top_annotations = sorted(
-            annotations,
-            key=lambda a: (a.get('helpful_votes', 0), a.get('created_at', '')),
-            reverse=True
-        )[:2]
-        top_annotation_cards = []
-        for ann in top_annotations:
-            ann_author = await db.users.find_one({"id": ann['author_id']}, {"_id": 0, "password": 0})
-            top_annotation_cards.append({
-                "id": ann['id'],
-                "text": ann['text'],
-                "annotation_type": ann.get('annotation_type', 'context'),
-                "helpful_votes": ann.get('helpful_votes', 0),
-                "author": {
-                    "id": ann_author['id'] if ann_author else ann['author_id'],
-                    "username": ann_author.get('username') if ann_author else 'Unknown'
-                }
-            })
-
-        result.append({
-            "id": claim['id'],
-            "text": claim['text'],
-            "domain": claim['domain'],
-            "confidence_level": claim['confidence_level'],
-            "author": {
-                "id": author['id'],
-                "username": author['username'],
-                "reputation_score": author['reputation_score']
-            },
-            "media": media_list,
-            "post_score": post_score,
-            "credibility_score": post_score,  # Kept for backwards compatibility
-            "top_annotations": top_annotation_cards,
-            "baseline_evaluation": claim.get('baseline_evaluation'),
-            "category": claim.get('category'),
-            "annotation_count": len(annotations),
-            "created_at": claim['created_at']
-        })
+        result.append(await build_claim_feed_item(claim))
     
     return result
 
@@ -1119,12 +1332,26 @@ async def upload_profile_picture(
     
     file_id = str(uuid.uuid4())
     file_ext = Path(file.filename).suffix
-    file_path = UPLOAD_DIR / f"profile_{file_id}{file_ext}"
-    
-    # Save file
     contents = await file.read()
-    with open(file_path, 'wb') as f:
-        f.write(contents)
+    temp_path = None
+    if USE_S3:
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
+                temp_file.write(contents)
+                temp_path = temp_file.name
+            s3_key = f"{AWS_S3_PROFILE_PREFIX}profile_{file_id}{file_ext}"
+            file_path = await s3_upload_file(temp_path, s3_key, file.content_type)
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    logger.warning(f"Failed to remove temp file {temp_path}")
+    else:
+        file_path = UPLOAD_DIR / f"profile_{file_id}{file_ext}"
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(contents)
     
     # Update user's profile picture
     await db.users.update_one(
@@ -1145,6 +1372,11 @@ async def get_profile_picture(user_id: str):
         return JSONResponse(status_code=204, content=None)
     
     file_path = user['profile_picture']
+    if is_s3_uri(file_path):
+        bucket, key = parse_s3_uri(file_path)
+        signed_url = await s3_generate_presigned_url(bucket, key)
+        return RedirectResponse(signed_url, status_code=302)
+    
     if not Path(file_path).exists():
         # File referenced but doesn't exist - clear the reference and return 204
         await db.users.update_one(
@@ -1347,7 +1579,13 @@ async def delete_claim(
     
     # Delete associated media files
     if claim.get('media_ids'):
-        media_deleted = await delete_media_files(claim['media_ids'], db, UPLOAD_DIR)
+        media_deleted = await delete_media_files(
+            claim['media_ids'],
+            db,
+            UPLOAD_DIR,
+            s3_client=S3_CLIENT,
+            s3_bucket=AWS_S3_BUCKET
+        )
         logger.info(f"Deleted {media_deleted} media files for claim {claim_id}")
     
     # Reverse reputation boost if any
@@ -1364,7 +1602,13 @@ async def delete_claim(
     annotations = await db.annotations.find({"claim_id": claim_id}, {"_id": 0}).to_list(length=1000)
     for ann in annotations:
         if ann.get('media_ids'):
-            await delete_media_files(ann['media_ids'], db, UPLOAD_DIR)
+            await delete_media_files(
+                ann['media_ids'],
+                db,
+                UPLOAD_DIR,
+                s3_client=S3_CLIENT,
+                s3_bucket=AWS_S3_BUCKET
+            )
     
     await db.annotations.delete_many({"claim_id": claim_id})
     
@@ -1418,17 +1662,28 @@ async def delete_user_account(
         media_ids_to_delete.update(ann.get('media_ids', []))
     
     if media_ids_to_delete:
-        media_deleted = await delete_media_files(list(media_ids_to_delete), db, UPLOAD_DIR)
+        media_deleted = await delete_media_files(
+            list(media_ids_to_delete),
+            db,
+            UPLOAD_DIR,
+            s3_client=S3_CLIENT,
+            s3_bucket=AWS_S3_BUCKET
+        )
         logger.info(f"Deleted {media_deleted} media files for user {user_id}")
     
     # Delete profile picture file if present
     profile_picture = current_user.get('profile_picture')
     if profile_picture:
         try:
-            profile_path = Path(profile_picture)
-            if profile_path.exists():
-                profile_path.unlink()
-                logger.info(f"Deleted profile picture for user {user_id}")
+            if is_s3_uri(profile_picture):
+                bucket, key = parse_s3_uri(profile_picture)
+                await s3_delete_object(bucket, key)
+                logger.info(f"Deleted profile picture for user {user_id} from S3")
+            else:
+                profile_path = Path(profile_picture)
+                if profile_path.exists():
+                    profile_path.unlink()
+                    logger.info(f"Deleted profile picture for user {user_id}")
         except Exception as e:
             logger.error(f"Failed to delete profile picture for user {user_id}: {e}")
     
@@ -1451,14 +1706,25 @@ async def delete_user_account(
 async def admin_cleanup_media(
     admin_key: str = Depends(require_admin_key)
 ):
-    result = await cleanup_orphaned_media(db, UPLOAD_DIR)
+    result = await cleanup_orphaned_media(
+        db,
+        UPLOAD_DIR,
+        s3_client=S3_CLIENT,
+        s3_bucket=AWS_S3_BUCKET
+    )
     return {"message": "Cleanup completed", "result": result}
 
 @api_router.get("/admin/media/stats")
 async def admin_media_stats(
     admin_key: str = Depends(require_admin_key)
 ):
-    stats = await get_storage_stats(db, UPLOAD_DIR)
+    stats = await get_storage_stats(
+        db,
+        UPLOAD_DIR,
+        s3_client=S3_CLIENT,
+        s3_bucket=AWS_S3_BUCKET,
+        s3_prefix=AWS_S3_MEDIA_PREFIX
+    )
     return {"stats": stats}
 
 # Notifications
@@ -1523,8 +1789,6 @@ async def get_unread_notification_count(
     })
     
     return {"unread_count": count}
-
-app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1602,6 +1866,12 @@ async def initialize_new_collections():
                 await db.create_collection('user_standing_records')
             await db.user_standing_records.create_index([("user_id", 1)])
             await db.user_standing_records.create_index([("updated_at", -1)])
+
+            # User interest profiles collection
+            if 'user_interests' not in await db.list_collection_names():
+                await db.create_collection('user_interests')
+            await db.user_interests.create_index([("user_id", 1)], unique=True)
+            await db.user_interests.create_index([("updated_at", -1)])
             
             logger.info("Thrryv v1 collections initialized successfully")
         
@@ -1636,6 +1906,10 @@ async def discover_content(
             intent=search_intent,
             available_claims=all_claims
         )
+
+        enriched_results = []
+        for claim in search_results:
+            enriched_results.append(await enrich_claim_for_discovery(claim))
         
         # Initialize discovery engine
         discovery = ContentDiscoveryEngine()
@@ -1646,12 +1920,43 @@ async def discover_content(
         # Discover content
         discovered = await discovery.discover_content(
             user_query=search_request.query,
-            available_claims=search_results,
+            available_claims=enriched_results,
             user_standing=user_standing,
             algorithm=algorithm,
             limit=search_request.limit,
             diversity_preference=search_request.diversity_preference
         )
+
+        discovered_ids = [item.claim_id for item in discovered]
+        claims_by_id: Dict[str, Dict[str, Any]] = {}
+        if discovered_ids:
+            discovered_claims = await db.claims.find(
+                {"id": {"$in": discovered_ids}},
+                {"_id": 0}
+            ).to_list(length=len(discovered_ids))
+            claims_by_id = {claim['id']: claim for claim in discovered_claims}
+
+        claim_feed_items = []
+        for item in discovered:
+            claim = claims_by_id.get(item.claim_id)
+            if claim:
+                claim_feed_items.append(await build_claim_feed_item(claim))
+
+        try:
+            intent_domains = search_intent.domains or []
+            claim_domains = [
+                extract_claim_domain(claim)
+                for claim in claims_by_id.values()
+            ]
+            claim_domains = [domain for domain in claim_domains if domain]
+            await update_user_interests(
+                user_id=current_user['id'],
+                query=search_request.query,
+                intent_domains=intent_domains,
+                claim_domains=claim_domains
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update user interests: {e}")
         
         # Format results
         results = []
@@ -1676,7 +1981,9 @@ async def discover_content(
                     "diversity": round(item.signals.diversity_score, 1),
                     "originality": round(item.signals.originality_score, 1),
                     "engagement_quality": round(item.signals.engagement_quality, 1),
-                    "clarity": round(item.signals.clarity_signal, 1)
+                    "clarity": round(item.signals.clarity_signal, 1),
+                    "impact": round(item.signals.impact_score, 1),
+                    "author_reputation": round(item.signals.author_reputation, 1)
                 }
             })
         
@@ -1688,12 +1995,147 @@ async def discover_content(
                 "sort_by": search_intent.sort_by
             },
             "results": results,
+            "claims": claim_feed_items,
             "note": "Discovery uses AI signals, not truth labels. Explore different perspectives."
         }
     
     except Exception as e:
         logger.error(f"Discovery error: {e}")
         raise HTTPException(status_code=500, detail="Discovery service temporarily unavailable")
+
+@api_router.post("/discover/feed")
+async def discover_feed(
+    request: FeedDiscoverRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    Personalized feed discovery using stored user interests.
+    """
+    async def build_top_claims(limit: int) -> List[Dict[str, Any]]:
+        all_items = await db.claims.find({}, {"_id": 0}).to_list(length=10000)
+        sorted_items = sorted(
+            all_items,
+            key=lambda claim: (
+                claim.get('impact_score') or 0,
+                claim.get('post_score') or claim.get('credibility_score') or 0,
+                claim.get('created_at') or ''
+            ),
+            reverse=True
+        )
+        top_items = sorted_items[:max(1, limit)]
+        return [await build_claim_feed_item(claim) for claim in top_items]
+
+    try:
+        interest_doc = await db.user_interests.find_one({"user_id": current_user['id']}, {"_id": 0})
+        interests = interest_doc.get('interests', {}) if interest_doc else {}
+
+        top_domains = [
+            domain for domain, _score in sorted(
+                interests.items(),
+                key=lambda item: item[1],
+                reverse=True
+            )
+        ][:3]
+
+        expanded_domains = list(top_domains)
+        for domain in top_domains:
+            for related in RELATED_DOMAIN_MAP.get(domain, []):
+                if related not in expanded_domains:
+                    expanded_domains.append(related)
+                if len(expanded_domains) >= 5:
+                    break
+            if len(expanded_domains) >= 5:
+                break
+
+        if not expanded_domains:
+            return {
+                "query": "top",
+                "interests": [],
+                "claims": await build_top_claims(request.limit),
+                "note": "Top posts shown while interests are still learning."
+            }
+
+        query = build_interest_query(expanded_domains)
+
+        search_engine = NaturalLanguageSearchEngine()
+        search_intent = await search_engine.parse_search_intent(query)
+
+        all_claims = await db.claims.find({}, {"_id": 0}).to_list(length=10000)
+        search_results = await search_engine.execute_search(
+            intent=search_intent,
+            available_claims=all_claims
+        )
+
+        enriched_results = []
+        for claim in search_results:
+            enriched_results.append(await enrich_claim_for_discovery(claim))
+
+        discovery = ContentDiscoveryEngine()
+        user_standing = current_user.get('user_standing_score', 1.0)
+
+        discovered = await discovery.discover_content(
+            user_query=query,
+            available_claims=enriched_results,
+            user_standing=user_standing,
+            algorithm=DiscoveryAlgorithm.RELEVANCE,
+            limit=request.limit,
+            diversity_preference=request.diversity_preference
+        )
+
+        if not discovered:
+            return {
+                "query": query,
+                "interests": expanded_domains,
+                "claims": await build_top_claims(request.limit),
+                "note": "Top posts shown while personalized feed warms up."
+            }
+
+        discovered = discovery._apply_diversity_ranking(discovered, request.diversity_preference)
+        discovered = discovery._apply_emergent_ranking(discovered)
+        discovered = discovery._apply_standing_aware_ranking(discovered)
+
+        discovered_ids = [item.claim_id for item in discovered]
+        claims_by_id: Dict[str, Dict[str, Any]] = {}
+        if discovered_ids:
+            discovered_claims = await db.claims.find(
+                {"id": {"$in": discovered_ids}},
+                {"_id": 0}
+            ).to_list(length=len(discovered_ids))
+            claims_by_id = {claim['id']: claim for claim in discovered_claims}
+
+        claim_feed_items = []
+        for item in discovered:
+            claim = claims_by_id.get(item.claim_id)
+            if claim:
+                claim_feed_items.append(await build_claim_feed_item(claim))
+
+        try:
+            claim_domains = [
+                extract_claim_domain(claim)
+                for claim in claims_by_id.values()
+            ]
+            claim_domains = [domain for domain in claim_domains if domain]
+            await update_user_interests(
+                user_id=current_user['id'],
+                query=query,
+                intent_domains=expanded_domains,
+                claim_domains=claim_domains,
+                query_weight=2,
+                claim_weight=1
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update user interests for feed: {e}")
+
+        return {
+            "query": query,
+            "interests": expanded_domains,
+            "claims": claim_feed_items,
+            "note": "Feed is personalized using your interests with light topic expansion."
+        }
+
+    except Exception as e:
+        logger.error(f"Feed discovery error: {e}")
+        raise HTTPException(status_code=500, detail="Feed discovery temporarily unavailable")
 
 # Content Signals & Improvement Feedback
 @api_router.get("/claims/{claim_id}/signals")
@@ -2024,3 +2466,5 @@ async def health_check():
     
     status_code = 200 if health_status["status"] == "healthy" else 503
     return health_status
+
+app.include_router(api_router)

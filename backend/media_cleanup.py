@@ -4,6 +4,7 @@ Handles orphaned files and cleanup when claims/users are deleted
 """
 import os
 import logging
+import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Set
@@ -12,7 +13,33 @@ from motor.motor_asyncio import AsyncIOMotorClient
 logger = logging.getLogger(__name__)
 
 
-async def cleanup_orphaned_media(db, upload_dir: Path) -> dict:
+def is_s3_uri(path_value: str) -> bool:
+    return isinstance(path_value, str) and path_value.startswith('s3://')
+
+def parse_s3_uri(uri: str) -> tuple[str, str]:
+    stripped = uri[5:]
+    parts = stripped.split('/', 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError('Invalid S3 URI')
+    return parts[0], parts[1]
+
+def extract_media_id(path_value: str) -> str | None:
+    if not path_value:
+        return None
+    try:
+        if is_s3_uri(path_value):
+            _, key = parse_s3_uri(path_value)
+            stem = Path(key).stem
+        else:
+            stem = Path(path_value).stem
+    except Exception:
+        return None
+
+    if stem.startswith('profile_'):
+        return stem.replace('profile_', '')
+    return stem
+
+async def cleanup_orphaned_media(db, upload_dir: Path, s3_client=None, s3_bucket: str | None = None) -> dict:
     """
     Find and delete media files that are not referenced by any claim or user
     
@@ -37,10 +64,9 @@ async def cleanup_orphaned_media(db, upload_dir: Path) -> dict:
     users = await db.users.find({}, {"_id": 0, "profile_picture": 1}).to_list(length=100000)
     for user in users:
         if user.get('profile_picture'):
-            # Extract ID from file path
-            profile_pic_path = Path(user['profile_picture'])
-            media_id = profile_pic_path.stem.replace('profile_', '')
-            referenced_media_ids.add(media_id)
+            media_id = extract_media_id(user['profile_picture'])
+            if media_id:
+                referenced_media_ids.add(media_id)
     
     # Get all media records from database
     all_media = await db.media.find({}, {"_id": 0, "id": 1, "file_path": 1}).to_list(length=100000)
@@ -75,6 +101,18 @@ async def cleanup_orphaned_media(db, upload_dir: Path) -> dict:
         result = await db.media.delete_many({"id": {"$in": list(orphaned_db_media)}})
         deleted_db_records = result.deleted_count
         logger.info(f"Deleted {deleted_db_records} orphaned media records from database")
+
+    # Delete orphaned S3 objects for orphaned DB media
+    if orphaned_db_media and s3_client:
+        for media_id in orphaned_db_media:
+            file_path = media_file_paths.get(media_id)
+            if file_path and is_s3_uri(file_path):
+                try:
+                    bucket, key = parse_s3_uri(file_path)
+                    await asyncio.to_thread(s3_client.delete_object, Bucket=bucket, Key=key)
+                    deleted_files += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete S3 object {file_path}: {e}")
     
     # Delete orphaned files
     for file_path in orphaned_files:
@@ -96,7 +134,7 @@ async def cleanup_orphaned_media(db, upload_dir: Path) -> dict:
     }
 
 
-async def delete_media_files(media_ids: List[str], db, upload_dir: Path) -> int:
+async def delete_media_files(media_ids: List[str], db, upload_dir: Path, s3_client=None, s3_bucket: str | None = None) -> int:
     """
     Delete specific media files and their database records
     
@@ -117,11 +155,17 @@ async def delete_media_files(media_ids: List[str], db, upload_dir: Path) -> int:
             if not media:
                 continue
             
-            # Delete file from filesystem
-            file_path = Path(media['file_path'])
-            if file_path.exists():
-                file_path.unlink()
-                logger.debug(f"Deleted media file: {file_path}")
+            file_path_value = media.get('file_path')
+            if file_path_value and is_s3_uri(file_path_value) and s3_client:
+                bucket, key = parse_s3_uri(file_path_value)
+                await asyncio.to_thread(s3_client.delete_object, Bucket=bucket, Key=key)
+                logger.debug(f"Deleted media object from S3: {file_path_value}")
+            elif file_path_value:
+                # Delete file from filesystem
+                file_path = Path(media['file_path'])
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.debug(f"Deleted media file: {file_path}")
             
             # Delete database record
             await db.media.delete_one({"id": media_id})
@@ -179,13 +223,22 @@ async def cleanup_old_media(db, upload_dir: Path, days_old: int = 90) -> dict:
     }
 
 
-async def get_storage_stats(db, upload_dir: Path) -> dict:
+async def get_storage_stats(db, upload_dir: Path, s3_client=None, s3_bucket: str | None = None, s3_prefix: str | None = None) -> dict:
     """
     Get statistics about media storage
     
     Returns:
         dict with storage statistics
     """
+    if s3_client and s3_bucket:
+        media_count = await db.media.count_documents({})
+        return {
+            "storage_backend": "s3",
+            "media_records_in_db": media_count,
+            "s3_bucket": s3_bucket,
+            "s3_prefix": s3_prefix or None
+        }
+
     total_files = 0
     total_size = 0
     
@@ -198,6 +251,7 @@ async def get_storage_stats(db, upload_dir: Path) -> dict:
     media_count = await db.media.count_documents({})
     
     return {
+        "storage_backend": "local",
         "total_files_on_disk": total_files,
         "total_size_bytes": total_size,
         "total_size_mb": round(total_size / (1024 * 1024), 2),

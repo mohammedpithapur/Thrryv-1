@@ -1,0 +1,2 @@
+{"timestamp": "2026-02-14T15:35:20.687125", "level": "\u001b[32mINFO\u001b[0m", "logger": "botocore.credentials", "message": "Found credentials in environment variables.", "module": "credentials", "function": "load", "line": 1252}
+{"timestamp": "2026-02-14T15:35:54.544386", "level": "\u001b[32mINFO\u001b[0m", "logger": "botocore.credentials", "message": "Found credentials in environment variables.", "module": "credentials", "function": "load", "line": 1252}

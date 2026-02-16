@@ -12,12 +12,12 @@ const Feed = ({ user }) => {
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('recent');
+  const [activeTab, setActiveTab] = useState('top');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadClaims();
-  }, []);
+  }, [searchQuery, user]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -26,9 +26,56 @@ const Feed = ({ user }) => {
   }, [location.search]);
 
   const loadClaims = () => {
-    axios.get(`${API}/claims`)
+    setLoading(true);
+    setError(null);
+
+    const token = localStorage.getItem('token');
+    const hasAuth = Boolean(token && user);
+    const hasQuery = Boolean(searchQuery && searchQuery.trim().length > 0);
+
+    if (!hasAuth) {
+      axios.get(`${API}/claims`)
+        .then(response => {
+          setClaims(response.data);
+          setLoading(false);
+        })
+        .catch(() => {
+          setError('Failed to load posts');
+          setLoading(false);
+        });
+      return;
+    }
+
+    const headers = { Authorization: `Bearer ${token}` };
+    if (hasQuery) {
+      axios.post(
+        `${API}/discover`,
+        {
+          query: searchQuery,
+          algorithm: 'relevance',
+          diversity_preference: 0.35,
+          limit: 20
+        },
+        { headers }
+      )
+        .then(response => {
+          setClaims(response.data?.claims || []);
+          setLoading(false);
+        })
+        .catch(() => {
+          setError('Failed to load posts');
+          setLoading(false);
+        });
+      return;
+    }
+
+    axios.post(
+      `${API}/discover/feed`,
+      { limit: 20, diversity_preference: 0.35 },
+      { headers }
+    )
       .then(response => {
-        setClaims(response.data);
+        setClaims(response.data?.claims || []);
         setLoading(false);
       })
       .catch(() => {
@@ -42,8 +89,24 @@ const Feed = ({ user }) => {
   };
 
   const getFilteredClaims = () => {
-    if (activeTab === 'recent') {
-      return claims;
+    if (activeTab === 'top') {
+      return [...claims].sort((a, b) => {
+        const aScore = a.post_score ?? a.credibility_score ?? 0;
+        const bScore = b.post_score ?? b.credibility_score ?? 0;
+        return bScore - aScore;
+      });
+    } else if (activeTab === 'impact') {
+      return [...claims].sort((a, b) => {
+        const aImpact = a.impact_score ?? a.post_score ?? a.credibility_score ?? 0;
+        const bImpact = b.impact_score ?? b.post_score ?? b.credibility_score ?? 0;
+        return bImpact - aImpact;
+      });
+    } else if (activeTab === 'recent') {
+      return [...claims].sort((a, b) => {
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+        return bTime - aTime;
+      });
     } else if (activeTab === 'debated') {
       return claims.filter(claim => 
         claim.annotation_count >= 3 && 
@@ -97,6 +160,30 @@ const Feed = ({ user }) => {
       <div className="border-b border-border mb-8 overflow-x-auto">
         <div className="flex gap-4 md:gap-8 min-w-max">
           <button
+            data-testid="tab-top"
+            onClick={() => setActiveTab('top')}
+            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'top'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Top
+            <span className="ml-2 text-xs">{claims.length}</span>
+          </button>
+          <button
+            data-testid="tab-impact"
+            onClick={() => setActiveTab('impact')}
+            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'impact'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Impact
+            <span className="ml-2 text-xs">{claims.length}</span>
+          </button>
+          <button
             data-testid="tab-recent"
             onClick={() => setActiveTab('recent')}
             className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
@@ -142,6 +229,8 @@ const Feed = ({ user }) => {
       {visibleClaims.length === 0 ? (
         <div data-testid="no-claims" className="text-center py-12 bg-secondary rounded-sm">
           <p className="text-muted-foreground">
+            {activeTab === 'top' && 'No top posts yet. Be the first to share!'}
+            {activeTab === 'impact' && 'No high-impact posts yet. Be the first to share!'}
             {activeTab === 'recent' && 'No posts yet. Be the first to share!'}
             {activeTab === 'debated' && 'No debated posts yet. Posts with 3+ annotations and mixed evidence appear here.'}
             {activeTab === 'uncertain' && 'No uncertain posts. Posts with few annotations or unclear evidence appear here.'}

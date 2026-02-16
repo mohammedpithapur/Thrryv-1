@@ -41,6 +41,8 @@ class DiscoverySignals:
     originality_score: float  # 0-100: How original/novel
     engagement_quality: float  # 0-100: Quality of engagement signals
     author_standing: float  # User standing score
+    author_reputation: float  # Author reputation score (0-100)
+    impact_score: float  # Post impact score (0-100)
     recency_weight: float  # Recent content boost
     clarity_signal: float  # Content clarity indicator
 
@@ -285,6 +287,12 @@ Respond in JSON format:
         
         # Author standing (normalized to 0-100)
         author_standing = min(100, claim.get('author_standing', 1.0) * 20)
+
+        # Author reputation (normalized to 0-100)
+        author_reputation = min(100, claim.get('author_reputation', 10.0) * 5)
+
+        # Impact score (0-100)
+        impact_score = min(100, max(0, claim.get('impact_score', 50.0)))
         
         # Recency weight
         created_at = claim.get('created_at')
@@ -299,6 +307,8 @@ Respond in JSON format:
             originality_score=originality,
             engagement_quality=engagement_quality,
             author_standing=author_standing,
+            author_reputation=author_reputation,
+            impact_score=impact_score,
             recency_weight=recency,
             clarity_signal=clarity
         )
@@ -470,39 +480,46 @@ Respond in JSON format:
         if algorithm == DiscoveryAlgorithm.RELEVANCE:
             # Heavy emphasis on relevance
             return (
-                signals.relevance_score * 0.5 +
+                signals.relevance_score * 0.35 +
                 signals.engagement_quality * 0.2 +
-                signals.clarity_signal * 0.15 +
+                signals.clarity_signal * 0.1 +
                 signals.originality_score * 0.1 +
-                signals.recency_weight * 0.05
+                signals.recency_weight * 0.05 +
+                signals.impact_score * 0.1 +
+                signals.author_reputation * 0.1
             )
         
         elif algorithm == DiscoveryAlgorithm.DIVERSITY:
             # Emphasize diverse perspectives
             return (
-                signals.diversity_score * 0.4 +
-                signals.relevance_score * 0.35 +
+                signals.diversity_score * 0.35 +
+                signals.relevance_score * 0.25 +
                 signals.engagement_quality * 0.15 +
-                signals.originality_score * 0.1
+                signals.originality_score * 0.1 +
+                signals.impact_score * 0.1 +
+                signals.author_reputation * 0.05
             )
         
         elif algorithm == DiscoveryAlgorithm.EMERGENT:
             # Favor new, original content
             return (
-                signals.originality_score * 0.4 +
+                signals.originality_score * 0.35 +
                 signals.recency_weight * 0.25 +
-                signals.relevance_score * 0.2 +
-                signals.clarity_signal * 0.15
+                signals.relevance_score * 0.15 +
+                signals.clarity_signal * 0.1 +
+                signals.impact_score * 0.1 +
+                signals.author_reputation * 0.05
             )
         
         elif algorithm == DiscoveryAlgorithm.STANDING_AWARE:
             # Boost by author standing
             return (
-                signals.relevance_score * 0.35 +
+                signals.relevance_score * 0.3 +
                 signals.author_standing * 0.3 +
-                signals.engagement_quality * 0.2 +
+                signals.engagement_quality * 0.15 +
                 signals.originality_score * 0.1 +
-                signals.diversity_score * 0.05
+                signals.diversity_score * 0.05 +
+                signals.impact_score * 0.1
             )
         
         return signals.relevance_score
