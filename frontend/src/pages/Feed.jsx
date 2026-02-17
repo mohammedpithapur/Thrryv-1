@@ -114,15 +114,6 @@ const Feed = ({ user }) => {
         const bTime = new Date(b.created_at).getTime();
         return bTime - aTime;
       });
-    } else if (activeTab === 'debated') {
-      return claims.filter(claim => 
-        claim.annotation_count >= 3 && 
-        (claim.credibility_score >= 30 && claim.credibility_score <= 70)
-      );
-    } else if (activeTab === 'uncertain') {
-      return claims.filter(claim => 
-        claim.annotation_count < 3
-      );
     }
     return claims;
   };
@@ -196,34 +187,7 @@ const Feed = ({ user }) => {
             Recent
             <span className="ml-2 text-xs">{claims.length}</span>
           </button>
-          <button
-            data-testid="tab-debated"
-            onClick={() => setActiveTab('debated')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'debated'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Debated
-            <span className="ml-2 text-xs">
-              {claims.filter(c => c.annotation_count >= 3 && (c.credibility_score >= 30 && c.credibility_score <= 70)).length}
-            </span>
-          </button>
-          <button
-            data-testid="tab-uncertain"
-            onClick={() => setActiveTab('uncertain')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'uncertain'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Uncertain
-            <span className="ml-2 text-xs">
-              {claims.filter(c => c.truth_label === 'Uncertain' || c.annotation_count < 3).length}
-            </span>
-          </button>
+          {/* Removed claimed/unclaimed (debated/uncertain) filter buttons */}
         </div>
       </div>
 
@@ -233,8 +197,7 @@ const Feed = ({ user }) => {
             {activeTab === 'top' && 'No top posts yet. Be the first to share!'}
             {activeTab === 'impact' && 'No high-impact posts yet. Be the first to share!'}
             {activeTab === 'recent' && 'No posts yet. Be the first to share!'}
-            {activeTab === 'debated' && 'No debated posts yet. Posts with 3+ annotations and mixed evidence appear here.'}
-            {activeTab === 'uncertain' && 'No uncertain posts. Posts with few annotations or unclear evidence appear here.'}
+            {/* Removed debated/uncertain empty state messages */}
           </p>
         </div>
       ) : (
