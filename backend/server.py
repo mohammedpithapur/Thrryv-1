@@ -2435,6 +2435,7 @@ async def get_search_suggestions(
 @api_router.get("/search/trending")
 @limiter.limit("60/hour")
 async def get_trending_topics(
+    request: Request,
     limit: int = 5,
     days: int = 7,
     standard: bool = False
