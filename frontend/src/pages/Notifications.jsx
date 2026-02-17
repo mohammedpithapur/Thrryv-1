@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Bell, CheckCheck, MessageSquare, ThumbsUp, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { getApiExtra, getApiList, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -22,12 +23,13 @@ const Notifications = () => {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API}/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000
+        timeout: 10000,
+        params: { standard: true }
       });
-      setNotifications(response.data.notifications);
-      setUnreadCount(response.data.unread_count);
+      setNotifications(getApiList(response));
+      setUnreadCount(getApiExtra(response)?.unread_count || 0);
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to fetch notifications';
+      const errorMsg = getApiErrorMessage(err, 'Failed to fetch notifications');
       setNotifications([]);
       setUnreadCount(0);
       // Only show toast on timeout or network errors, not on auth failures

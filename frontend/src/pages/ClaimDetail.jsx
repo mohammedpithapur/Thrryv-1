@@ -6,6 +6,7 @@ import AnnotationCard from '../components/AnnotationCard';
 import VideoPlayer from '../components/VideoPlayer';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { getApiData, getApiList, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -23,13 +24,13 @@ const ClaimDetail = ({ user }) => {
   const [annotationMedia, setAnnotationMedia] = useState([]);
 
   const loadData = useCallback(() => {
-    axios.get(`${API}/claims/${claimId}`)
+    axios.get(`${API}/claims/${claimId}`, { params: { standard: true } })
       .then(claimRes => {
-        setClaim(claimRes.data);
-        return axios.get(`${API}/claims/${claimId}/annotations`);
+        setClaim(getApiData(claimRes));
+        return axios.get(`${API}/claims/${claimId}/annotations`, { params: { standard: true } });
       })
       .then(annotationsRes => {
-        setAnnotations(annotationsRes.data);
+        setAnnotations(getApiList(annotationsRes));
         setLoading(false);
       })
       .catch(() => {
@@ -92,13 +93,14 @@ const ClaimDetail = ({ user }) => {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`
-        }
+        },
+        params: { standard: true }
       });
 
-      setAnnotationMedia([...annotationMedia, response.data]);
+      setAnnotationMedia([...annotationMedia, getApiData(response)]);
       toast.success('Media uploaded');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to upload');
+      toast.error(getApiErrorMessage(err, 'Failed to upload'));
     } finally {
       setUploadingAnnotationMedia(false);
     }
@@ -121,7 +123,7 @@ const ClaimDetail = ({ user }) => {
         loadData();
       })
       .catch(err => {
-        toast.error(err.response?.data?.detail || 'Failed to vote');
+        toast.error(getApiErrorMessage(err, 'Failed to vote'));
       });
   };
 

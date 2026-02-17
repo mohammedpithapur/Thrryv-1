@@ -4,6 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Upload, TrendingUp, Sparkles, Loader2, X, CheckCircle2, ArrowLeft } from 'lucide-react';
 import PostAnalysisModal from '../components/PostAnalysisModal';
+import { getApiData, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -39,13 +40,14 @@ const CreateClaim = ({ user }) => {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`
-        }
+        },
+        params: { standard: true }
       });
 
-      setUploadedMedia([...uploadedMedia, response.data]);
+      setUploadedMedia([...uploadedMedia, getApiData(response)]);
       toast.success('Media uploaded successfully');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to upload media');
+      toast.error(getApiErrorMessage(err, 'Failed to upload media'));
     } finally {
       setUploading(false);
     }
@@ -84,13 +86,15 @@ const CreateClaim = ({ user }) => {
           media_ids: uploadedMedia.map(m => m.id)
         },
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { standard: true }
         }
       );
 
-      const evaluation = response.data.baseline_evaluation;
-      setCreatedPostId(response.data.id);
-      setPostData(response.data);
+      const data = getApiData(response);
+      const evaluation = data.baseline_evaluation;
+      setCreatedPostId(data.id);
+      setPostData(data);
       setEvaluationResult(evaluation);
       
       // Show analysis modal before publishing
@@ -98,7 +102,7 @@ const CreateClaim = ({ user }) => {
       setSubmitting(false);
       
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to create post');
+      toast.error(getApiErrorMessage(err, 'Failed to create post'));
       setSubmitting(false);
     }
   };

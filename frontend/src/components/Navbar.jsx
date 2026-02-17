@@ -4,6 +4,7 @@ import { User, PlusCircle, Plus, Bell } from 'lucide-react';
 import axios from 'axios';
 import UserAvatar from './UserAvatar';
 import SearchBar from './SearchBar';
+import { getApiData } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,9 +29,11 @@ const Navbar = ({ user, onLogout }) => {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API}/notifications/unread-count`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 5000
+        timeout: 5000,
+        params: { standard: true }
       });
-      setUnreadCount(response.data.unread_count || 0);
+      const data = getApiData(response);
+      setUnreadCount(data?.unread_count || 0);
     } catch (err) {
       // Silently fail - doesn't impact UX to not show count
       setUnreadCount(0);

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Loader2, TrendingUp, Settings, LogOut, ChevronDown, ChevronUp, Trash2, MessageSquare, ThumbsUp, ExternalLink, ArrowLeft } from 'lucide-react';
 import UserAvatar from '../components/UserAvatar';
+import { getApiData, getApiList, getApiErrorMessage } from '../lib/api';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -52,11 +53,11 @@ const UserProfile = ({ currentUser, onLogout }) => {
     
     setLoadingClaims(true);
     try {
-      const response = await axios.get(`${API}/users/${userId}/claims`);
-      setAllClaims(response.data);
+      const response = await axios.get(`${API}/users/${userId}/claims`, { params: { standard: true } });
+      setAllClaims(getApiList(response));
       setShowAllClaims(true);
     } catch (err) {
-      toast.error('Failed to load posts');
+      toast.error(getApiErrorMessage(err, 'Failed to load posts'));
     } finally {
       setLoadingClaims(false);
     }
@@ -70,11 +71,11 @@ const UserProfile = ({ currentUser, onLogout }) => {
     
     setLoadingAnnotations(true);
     try {
-      const response = await axios.get(`${API}/users/${userId}/annotations`);
-      setAllAnnotations(response.data);
+      const response = await axios.get(`${API}/users/${userId}/annotations`, { params: { standard: true } });
+      setAllAnnotations(getApiList(response));
       setShowAllAnnotations(true);
     } catch (err) {
-      toast.error('Failed to load annotations');
+      toast.error(getApiErrorMessage(err, 'Failed to load annotations'));
     } finally {
       setLoadingAnnotations(false);
     }
@@ -84,11 +85,13 @@ const UserProfile = ({ currentUser, onLogout }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.delete(`${API}/claims/${claimId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { standard: true }
       });
       
-      if (response.data.reputation_reversed > 0) {
-        toast.success(`Post deleted. ${response.data.reputation_reversed.toFixed(1)} impact reversed.`);
+      const data = getApiData(response);
+      if (data.reputation_reversed > 0) {
+        toast.success(`Post deleted. ${data.reputation_reversed.toFixed(1)} impact reversed.`);
       } else {
         toast.success('Post deleted successfully.');
       }
@@ -101,10 +104,10 @@ const UserProfile = ({ currentUser, onLogout }) => {
           ...prev.contribution_stats,
           claims_posted: Math.max(0, prev.contribution_stats.claims_posted - 1)
         },
-        reputation_score: prev.reputation_score - (response.data.reputation_reversed || 0)
+        reputation_score: prev.reputation_score - (data.reputation_reversed || 0)
       }));
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete post');
+      toast.error(getApiErrorMessage(err, 'Failed to delete post'));
     } finally {
       setShowDeleteDialog(false);
       setDeletePostId(null);

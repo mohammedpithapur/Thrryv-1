@@ -15,6 +15,8 @@ import Register from "./pages/Register";
 import UserProfile from "./pages/UserProfile";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
+import AdminClientLogs from "./pages/AdminClientLogs";
+import { getApiData } from "./lib/api";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -44,6 +46,7 @@ function AppRoutes({ user, loading, handleLogin, handleUserUpdate, handleLogout 
       <Route path="/profile/:userId" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><UserProfile currentUser={user} onLogout={handleLogout} /></ErrorBoundary></>} />
       <Route path="/settings" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><ProfileSettings user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ErrorBoundary></>} />
       <Route path="/notifications" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><Notifications /></ErrorBoundary></>} />
+      <Route path="/admin/logs" element={<><Navbar user={user} onLogout={handleLogout} /><ErrorBoundary><AdminClientLogs /></ErrorBoundary></>} />
     </Routes>
   );
 }
@@ -65,10 +68,12 @@ function App() {
 
     try {
       const response = await axios.get(`${API}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { standard: true }
       });
-      setUser(response.data);
-      localStorage.setItem('user', JSON.stringify(response.data));
+      const data = getApiData(response);
+      setUser(data);
+      localStorage.setItem('user', JSON.stringify(data));
     } catch (err) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

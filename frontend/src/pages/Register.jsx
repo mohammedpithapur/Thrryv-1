@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { getApiData, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -18,18 +19,19 @@ const Register = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API}/auth/register`, {
-        username,
-        email,
-        password
-      });
+      const response = await axios.post(
+        `${API}/auth/register`,
+        { username, email, password },
+        { params: { standard: true } }
+      );
 
-      localStorage.setItem('token', response.data.token);
-      onLogin(response.data.user);
+      const data = getApiData(response);
+      localStorage.setItem('token', data.token);
+      onLogin(data.user);
       toast.success('Registration successful');
       navigate('/feed');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Registration failed');
+      toast.error(getApiErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }

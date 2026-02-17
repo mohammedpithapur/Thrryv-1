@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, TrendingUp, Clock, Tag, X } from 'lucide-react';
 import axios from 'axios';
+import { getApiList } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,10 +29,11 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
     
     const loadTrendingTopics = async () => {
       try {
-        const response = await axios.get(`${API}/search/trending`, { timeout: 5000 });
-        const topics = Array.isArray(response.data)
-          ? response.data
-          : (response.data?.data || []).map((item) => item.topic);
+        const response = await axios.get(`${API}/search/trending`, {
+          timeout: 5000,
+          params: { standard: true }
+        });
+        const topics = getApiList(response).map((item) => item.topic || item);
         setTrendingTopics(topics.slice(0, 5));
       } catch (error) {
         setTrendingTopics([]);
@@ -73,12 +75,10 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
 
       try {
         const response = await axios.get(`${API}/search/suggestions`, {
-          params: { q: searchTerm, limit: 5 },
+          params: { q: searchTerm, limit: 5, standard: true },
           timeout: 5000
         });
-        const rawSuggestions = Array.isArray(response.data)
-          ? response.data
-          : response.data?.data || [];
+        const rawSuggestions = getApiList(response);
         const normalizedSuggestions = rawSuggestions.map((item) =>
           typeof item === 'string' ? { type: 'topic', text: item } : item
         );

@@ -4,6 +4,7 @@ import ClaimCard from '../components/ClaimCard';
 import { Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
+import { getApiData, getApiList, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -35,13 +36,13 @@ const Feed = ({ user }) => {
     const hasQuery = Boolean(searchQuery && searchQuery.trim().length > 0);
 
     if (!hasAuth) {
-      axios.get(`${API}/claims`, { timeout: 10000 })
+      axios.get(`${API}/claims`, { timeout: 10000, params: { standard: true } })
         .then(response => {
-          setClaims(response.data);
+          setClaims(getApiList(response));
           setLoading(false);
         })
         .catch((err) => {
-          const message = err.response?.data?.detail || 'Failed to load posts';
+          const message = getApiErrorMessage(err, 'Failed to load posts');
           setError(message);
           setLoading(false);
         });
@@ -58,14 +59,15 @@ const Feed = ({ user }) => {
           diversity_preference: 0.35,
           limit: 20
         },
-        { headers, timeout: 15000 }
+        { headers, timeout: 15000, params: { standard: true } }
       )
         .then(response => {
-          setClaims(response.data?.claims || []);
+          const data = getApiData(response);
+          setClaims(data?.claims || []);
           setLoading(false);
         })
         .catch((err) => {
-          const message = err.response?.data?.detail || 'Failed to load posts';
+          const message = getApiErrorMessage(err, 'Failed to load posts');
           setError(message);
           setLoading(false);
         });
@@ -75,14 +77,15 @@ const Feed = ({ user }) => {
     axios.post(
       `${API}/discover/feed`,
       { limit: 20, diversity_preference: 0.35 },
-      { headers, timeout: 15000 }
+      { headers, timeout: 15000, params: { standard: true } }
     )
       .then(response => {
-        setClaims(response.data?.claims || []);
+        const data = getApiData(response);
+        setClaims(data?.claims || []);
         setLoading(false);
       })
       .catch((err) => {
-        const message = err.response?.data?.detail || 'Failed to load posts';
+        const message = getApiErrorMessage(err, 'Failed to load posts');
         setError(message);
         setLoading(false);
       });

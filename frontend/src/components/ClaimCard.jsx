@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import UserAvatar from './UserAvatar';
 import VideoPlayer from './VideoPlayer';
 import { MessageSquare, TrendingUp, Trash2, MoreVertical } from 'lucide-react';
+import { getApiData, getApiList, getApiErrorMessage } from '../lib/api';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -50,11 +51,13 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.delete(`${API}/claims/${claim.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { standard: true }
       });
       
-      if (response.data.reputation_reversed > 0) {
-        toast.success(`Post deleted. ${response.data.reputation_reversed.toFixed(1)} impact reversed.`);
+      const data = getApiData(response);
+      if (data.reputation_reversed > 0) {
+        toast.success(`Post deleted. ${data.reputation_reversed.toFixed(1)} impact reversed.`);
       } else {
         toast.success('Post deleted successfully.');
       }
@@ -63,7 +66,7 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
         onDelete(claim.id);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete post');
+      toast.error(getApiErrorMessage(err, 'Failed to delete post'));
     } finally {
       setDeleting(false);
       setShowMenu(false);
@@ -75,10 +78,10 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
     if (commentsLoading) return;
     setCommentsLoading(true);
     try {
-      const response = await axios.get(`${API}/claims/${claim.id}/annotations`);
-      setComments(response.data || []);
+      const response = await axios.get(`${API}/claims/${claim.id}/annotations`, { params: { standard: true } });
+      setComments(getApiList(response));
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to load comments');
+      toast.error(getApiErrorMessage(err, 'Failed to load comments'));
     } finally {
       setCommentsLoading(false);
     }
@@ -113,7 +116,7 @@ const ClaimCard = ({ claim, currentUser, onDelete }) => {
       await loadComments();
       toast.success('Comment added (AI classified)');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to add comment');
+      toast.error(getApiErrorMessage(err, 'Failed to add comment'));
     } finally {
       setSubmittingComment(false);
     }

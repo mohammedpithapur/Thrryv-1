@@ -35,6 +35,7 @@ import tempfile
 import boto3
 import uvicorn
 import re
+import time
 
 # Import AI Reputation Evaluator
 from ai_reputation_evaluator import evaluate_claim_for_reputation, EvaluationResult
@@ -2178,6 +2179,41 @@ async def admin_media_stats(
         return standardize_single_response(response_data)
     return response_data
 
+@api_router.get("/admin/logs/client")
+async def admin_client_logs(
+    admin_key: str = Depends(require_admin_key),
+    skip: int = 0,
+    limit: int = 50,
+    level: Optional[str] = None,
+    standard: bool = False
+):
+    query: Dict[str, Any] = {}
+    if level:
+        query["level"] = level.lower()
+
+    logs = await db.client_logs.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    total = await db.client_logs.count_documents(query)
+
+    if standard:
+        return standardize_list_response(logs, limit, skip, total)
+
+    return {"logs": logs, "total": total}
+
+@api_router.delete("/admin/logs/client")
+async def admin_client_logs_cleanup(
+    admin_key: str = Depends(require_admin_key),
+    days: int = 30,
+    standard: bool = False
+):
+    safe_days = max(1, min(days, 365))
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=safe_days)).isoformat()
+    result = await db.client_logs.delete_many({"created_at": {"$lt": cutoff_iso}})
+
+    response_data = {"deleted": result.deleted_count, "older_than_days": safe_days}
+    if standard:
+        return standardize_single_response(response_data, message="Client logs cleaned")
+    return response_data
+
 # Notifications
 @api_router.get("/notifications")
 async def get_notifications(
@@ -2298,6 +2334,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+class RequestMetricsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get('x-request-id') or uuid.uuid4().hex
+        request.state.request_id = request_id
+        start_time = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        response.headers['X-Request-ID'] = request_id
+        response.headers['X-Response-Time-ms'] = f"{duration_ms:.2f}"
+        return response
+
+app.add_middleware(RequestMetricsMiddleware)
+
 @app.on_event("startup")
 async def startup_db_client():
     """Initialize database connection on startup"""
@@ -2358,6 +2407,12 @@ async def initialize_new_collections():
                 await db.create_collection('user_interests')
             await db.user_interests.create_index([("user_id", 1)], unique=True)
             await db.user_interests.create_index([("updated_at", -1)])
+
+            # Client logs collection
+            if 'client_logs' not in await db.list_collection_names():
+                await db.create_collection('client_logs')
+            await db.client_logs.create_index([("created_at", -1)])
+            await db.client_logs.create_index([("level", 1)])
             
             logger.info("Thrryv v1 collections initialized successfully")
         
@@ -2419,6 +2474,7 @@ async def log_client_error(
         "context": context,
         "created_at": created_at,
         "user_id": current_user.get("id") if current_user else None,
+        "request_id": getattr(request.state, "request_id", None),
         "user_agent": request.headers.get("user-agent"),
         "ip": request.client.host if request.client else None
     }

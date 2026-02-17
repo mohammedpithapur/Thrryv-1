@@ -32,6 +32,42 @@ class TestHealthAndBasics:
         assert isinstance(response.json(), list)
         print(f"✓ Claims endpoint accessible, returned {len(response.json())} claims")
 
+    def test_error_format(self):
+        """Test standardized error response shape"""
+        response = requests.get(f"{BASE_URL}/api/claims/nonexistent-id-12345")
+        assert response.status_code == 404
+        data = response.json()
+        assert data.get("success") is False
+        assert "error" in data
+        assert "detail" in data
+        print("✓ Error response standardized")
+
+
+class TestSearchAndTrending:
+    """Search suggestions and trending topics tests"""
+
+    def test_search_suggestions_standard(self):
+        response = requests.get(
+            f"{BASE_URL}/api/search/suggestions",
+            params={"q": "climate", "standard": True}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("success") is True
+        assert isinstance(data.get("data"), list)
+        print("✓ Search suggestions returned")
+
+    def test_trending_topics_standard(self):
+        response = requests.get(
+            f"{BASE_URL}/api/search/trending",
+            params={"standard": True}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("success") is True
+        assert isinstance(data.get("data"), list)
+        print("✓ Trending topics returned")
+
 
 class TestAuthentication:
     """Authentication endpoint tests"""
@@ -137,13 +173,13 @@ class TestClaims:
         assert "id" in data
         assert data["text"] == claim_text
         assert "domain" in data  # AI-classified domain
-        assert "truth_label" in data  # AI fact-check result
-        assert "credibility_score" in data
+        assert "post_score" in data
+        assert "baseline_evaluation" in data
         assert data["author"]["username"] == TEST_USERNAME
         
         TestState.claim_id = data["id"]
         print(f"✓ Claim created with ID: {TestState.claim_id}")
-        print(f"  Domain: {data['domain']}, Truth Label: {data['truth_label']}")
+        print(f"  Domain: {data['domain']}, Post Score: {data['post_score']}")
     
     def test_get_claims_list(self):
         """Test getting list of claims"""
@@ -161,7 +197,7 @@ class TestClaims:
         # Validate claim structure
         assert "text" in test_claim
         assert "domain" in test_claim
-        assert "truth_label" in test_claim
+        assert "post_score" in test_claim
         assert "credibility_score" in test_claim
         assert "annotation_count" in test_claim
         assert "author" in test_claim
@@ -178,7 +214,7 @@ class TestClaims:
         assert claim["id"] == TestState.claim_id
         assert "text" in claim
         assert "domain" in claim
-        assert "truth_label" in claim
+        assert "post_score" in claim
         assert "credibility_score" in claim
         assert "author" in claim
         
@@ -374,7 +410,7 @@ class TestUserSettings:
         
         response = requests.patch(
             f"{BASE_URL}/api/users/settings",
-            params={"username": new_username},
+            json={"username": new_username},
             headers={"Authorization": f"Bearer {TestState.token}"}
         )
         
@@ -394,8 +430,8 @@ class TestAIFactChecking:
     """Test AI fact-checking functionality"""
     
     def test_false_claim_detection(self):
-        """Test that known false claims are detected"""
-        # Create a claim that should be detected as false
+        """Test baseline evaluation is returned for a claim"""
+        # Create a claim that should receive evaluation signals
         response = requests.post(
             f"{BASE_URL}/api/claims",
             json={
@@ -408,10 +444,8 @@ class TestAIFactChecking:
         
         assert response.status_code == 200
         data = response.json()
-        
-        # Should be detected as false
-        assert data["truth_label"] in ["False", "Likely False"]
-        print(f"✓ False claim detected: truth_label={data['truth_label']}")
+        assert "baseline_evaluation" in data
+        print("✓ Baseline evaluation returned for claim")
     
     def test_domain_classification(self):
         """Test that claims are classified into domains"""
@@ -430,7 +464,7 @@ class TestAIFactChecking:
         data = response.json()
         
         # Should be classified into a domain
-        assert data["domain"] in ["Science", "Health", "Other"]
+        assert data["domain"] in ["Science", "Health", "General"]
         print(f"✓ Claim classified into domain: {data['domain']}")
 
 

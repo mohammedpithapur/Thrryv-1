@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import UserAvatar from '../components/UserAvatar';
 import { useTheme } from '../context/ThemeContext';
 import { Camera, Moon, Sun, AlertTriangle, Check, X, Loader2, Save, ArrowLeft } from 'lucide-react';
+import { getApiData, getApiErrorMessage } from '../lib/api';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -101,7 +102,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       toast.success('Profile picture updated!');
       window.location.reload();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to upload');
+      toast.error(getApiErrorMessage(err, 'Failed to upload'));
     } finally {
       setUploading(false);
     }
@@ -129,15 +130,16 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       const response = await axios.patch(
         `${API}/users/settings`,
         { username },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, params: { standard: true } }
       );
 
       toast.success('Username updated successfully!');
-      if (onUserUpdate && response.data.user) {
-        onUserUpdate({ ...user, username: response.data.user.username });
+      const data = getApiData(response);
+      if (onUserUpdate && data?.user) {
+        onUserUpdate({ ...user, username: data.user.username });
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update username');
+      toast.error(getApiErrorMessage(err, 'Failed to update username'));
     } finally {
       setSavingUsername(false);
     }
@@ -160,15 +162,16 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       const response = await axios.patch(
         `${API}/users/settings`,
         { bio },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, params: { standard: true } }
       );
 
       toast.success('Bio updated successfully!');
-      if (onUserUpdate && response.data.user) {
-        onUserUpdate({ ...user, bio: response.data.user.bio });
+      const data = getApiData(response);
+      if (onUserUpdate && data?.user) {
+        onUserUpdate({ ...user, bio: data.user.bio });
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update bio');
+      toast.error(getApiErrorMessage(err, 'Failed to update bio'));
     } finally {
       setSavingBio(false);
     }
@@ -201,7 +204,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
           current_password: currentPassword,
           new_password: newPassword
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, params: { standard: true } }
       );
 
       toast.success('Password updated successfully!');
@@ -209,7 +212,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update password');
+      toast.error(getApiErrorMessage(err, 'Failed to update password'));
     } finally {
       setSaving(false);
     }
@@ -230,7 +233,8 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.delete(`${API}/users/account?confirmation=${encodeURIComponent(deleteConfirmation)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { standard: true }
       });
       
       toast.success('Account deleted successfully');
@@ -240,7 +244,7 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
       }
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete account');
+      toast.error(getApiErrorMessage(err, 'Failed to delete account'));
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);
