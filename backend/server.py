@@ -2345,37 +2345,23 @@ class RequestMetricsMiddleware(BaseHTTPMiddleware):
         response.headers['X-Response-Time-ms'] = f"{duration_ms:.2f}"
         return response
 
-app.add_middleware(RequestMetricsMiddleware)
 
-@app.on_event("startup")
-async def startup_db_client():
-    """Initialize database connection on startup"""
+# --- FastAPI lifespan event handler for startup/shutdown ---
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
     global client, db
+    # Startup logic
     try:
         client = await get_db_client()
         db = client[os.environ['DB_NAME']]
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
-        # Allow app to start but log error
-        # Individual endpoints will handle connection errors
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    """Close database connection on shutdown"""
-    global client
-    if client:
-        client.close()
-        logger.info("Database connection closed")
-
-# Initialize additional collections for Thrryv v1 features
-@app.on_event("startup")
-async def initialize_new_collections():
-    """Initialize collections for new Thrryv v1 features"""
-    global db
-    
+        db = None
+    # Initialize additional collections for Thrryv v1 features
     if db is not None:
-        # Create indexes for performance
         try:
             # Challenges collection
             if 'challenges' not in await db.list_collection_names():
@@ -2383,19 +2369,19 @@ async def initialize_new_collections():
             await db.challenges.create_index([("claim_id", 1)])
             await db.challenges.create_index([("creator_id", 1)])
             await db.challenges.create_index([("status", 1)])
-            
+
             # Predictions collection
             if 'predictions' not in await db.list_collection_names():
                 await db.create_collection('predictions')
             await db.predictions.create_index([("challenge_id", 1)])
             await db.predictions.create_index([("user_id", 1)])
             await db.predictions.create_index([("challenge_id", 1), ("user_id", 1)])
-            
+
             # Content signals collection (for caching feedback)
             if 'content_signals' not in await db.list_collection_names():
                 await db.create_collection('content_signals')
             await db.content_signals.create_index([("claim_id", 1)])
-            
+
             # User standing records collection
             if 'user_standing_records' not in await db.list_collection_names():
                 await db.create_collection('user_standing_records')
@@ -2413,18 +2399,27 @@ async def initialize_new_collections():
                 await db.create_collection('client_logs')
             await db.client_logs.create_index([("created_at", -1)])
             await db.client_logs.create_index([("level", 1)])
-            
+
             logger.info("Thrryv v1 collections initialized successfully")
-        
         except Exception as e:
             logger.warning(f"Collection initialization note: {e}")
+    yield
+    # Shutdown logic
+    if client:
+        client.close()
+        logger.info("Database connection closed")
+
+app.add_middleware(RequestMetricsMiddleware)
+app.router.lifespan_context = lifespan
 
 # Thrryv v1 Features
 
 # Search suggestions and trending topics
+
 @api_router.get("/search/suggestions")
 @limiter.limit("120/hour")
 async def get_search_suggestions(
+    request: Request,
     q: str,
     limit: int = 5,
     standard: bool = False
