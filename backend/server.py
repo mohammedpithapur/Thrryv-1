@@ -1,3 +1,17 @@
+import time as _time
+
+# Simple in-memory cache for suggestions and trending topics
+_suggestion_cache = {}
+_trending_cache = {}
+
+def _cache_get(cache, key, max_age):
+    entry = cache.get(key)
+    if entry and (_time.time() - entry['time'] < max_age):
+        return entry['value']
+    return None
+
+def _cache_set(cache, key, value):
+    cache[key] = {'value': value, 'time': _time.time()}
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Request, Header
 from fastapi.exceptions import RequestValidationError
 from fastapi.security import HTTPBearer
@@ -663,6 +677,11 @@ async def build_search_suggestions(query: str, limit: int) -> List[Dict[str, Any
     if len(normalized) < 2:
         return []
 
+    cache_key = f"{normalized}:{limit}"
+    cached = _cache_get(_suggestion_cache, cache_key, max_age=60)  # 60s cache
+    if cached is not None:
+        return cached
+
     suggestions: List[Dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -701,7 +720,9 @@ async def build_search_suggestions(query: str, limit: int) -> List[Dict[str, Any
     if not suggestions:
         add_suggestion("query", normalized)
 
-    return suggestions[:limit]
+    result = suggestions[:limit]
+    _cache_set(_suggestion_cache, cache_key, result)
+    return result
 
 async def build_trending_topics(days: int, limit: int) -> List[Dict[str, Any]]:
     if not db:
@@ -709,6 +730,11 @@ async def build_trending_topics(days: int, limit: int) -> List[Dict[str, Any]]:
 
     safe_days = max(1, min(days, 30))
     safe_limit = max(1, min(limit, 10))
+    cache_key = f"{safe_days}:{safe_limit}"
+    cached = _cache_get(_trending_cache, cache_key, max_age=60)  # 60s cache
+    if cached is not None:
+        return cached
+
     cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=safe_days)).isoformat()
 
     claims = await db.claims.find(
@@ -729,10 +755,12 @@ async def build_trending_topics(days: int, limit: int) -> List[Dict[str, Any]]:
             counts[domain] = counts.get(domain, 0) + 1
 
     sorted_domains = sorted(counts.items(), key=lambda item: item[1], reverse=True)
-    return [
+    trending = [
         {"topic": domain, "count": count}
         for domain, count in sorted_domains[:safe_limit]
     ]
+    _cache_set(_trending_cache, cache_key, trending)
+    return trending
 
 def require_admin_key(x_admin_key: Optional[str] = Header(None)):
     if not ADMIN_API_KEY:
@@ -2402,7 +2430,20 @@ async def lifespan(app):
             await db.client_logs.create_index([("created_at", -1)])
             await db.client_logs.create_index([("level", 1)])
 
-            logger.info("Thrryv v1 collections initialized successfully")
+            # --- Added recommended indexes for speed ---
+            # Claims collection
+            await db.claims.create_index([("created_at", -1)])
+            await db.claims.create_index([("domain", 1)])
+            await db.claims.create_index([("category.primary_path", 1)])
+            # Users collection
+            await db.users.create_index([("id", 1)], unique=True)
+            await db.users.create_index([("email", 1)], unique=True)
+            await db.users.create_index([("username", 1)], unique=True)
+            # Annotations collection
+            await db.annotations.create_index([("claim_id", 1)])
+            await db.annotations.create_index([("author_id", 1)])
+
+            logger.info("Thrryv v1 collections and indexes initialized successfully")
         except Exception as e:
             logger.warning(f"Collection initialization note: {e}")
     yield
@@ -2411,6 +2452,17 @@ async def lifespan(app):
         client.close()
         logger.info("Database connection closed")
 
+import logging
+class TimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start = _time.time()
+        response = await call_next(request)
+        duration = (_time.time() - start) * 1000
+        logging.info(f"{request.method} {request.url.path} took {duration:.2f}ms")
+        response.headers['X-Endpoint-Timing-ms'] = f"{duration:.2f}"
+        return response
+
+app.add_middleware(TimingMiddleware)
 app.add_middleware(RequestMetricsMiddleware)
 app.router.lifespan_context = lifespan
 
