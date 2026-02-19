@@ -17,7 +17,10 @@ const Feed = ({ user }) => {
   const [activeTab, setActiveTab] = useState('top');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Only load claims when user loading is complete (user !== undefined)
   useEffect(() => {
+    // If user is still undefined (loading), do not load claims yet
+    if (typeof user === 'undefined') return;
     loadClaims();
   }, [searchQuery, user]);
 
