@@ -2305,7 +2305,9 @@ async def get_unread_notification_count(
     return response_data
 
 # CORS configuration - restrict to specific origins
-CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001')
+
+# Add your production frontend domain to allowed origins
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,https://getthrryv.com')
 if CORS_ORIGINS == '*':
     logger.warning("CORS_ORIGINS set to '*' - this is not recommended for production. Use specific origins instead.")
     allowed_origins = ['*']
