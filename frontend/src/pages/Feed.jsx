@@ -18,7 +18,7 @@ const Feed = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Helper for retry logic
-  async function fetchWithRetry(fn, retries = 3, delay = 1000) {
+  async function fetchWithRetry(fn, retries = 6, delay = 2000) {
     let lastErr;
     for (let i = 0; i < retries; i++) {
       try {
