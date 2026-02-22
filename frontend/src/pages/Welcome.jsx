@@ -15,10 +15,19 @@ const Welcome = () => {
 
   return (
     <div data-testid="welcome-page" className="min-h-screen bg-white">
-      {/* Minimal Header */}
-      <header className="px-8 py-6 flex items-center gap-3">
-        <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
-        <span className="playfair text-xl font-semibold tracking-tight text-slate-900">Thrryv</span>
+      {/* Minimal Header with Sign In top right */}
+      <header className="px-8 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
+          <span className="playfair text-xl font-semibold tracking-tight text-slate-900">Thrryv</span>
+        </div>
+        <button
+          data-testid="welcome-login-btn"
+          onClick={() => navigate('/login')}
+          className="px-6 py-2 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-base rounded transition-all duration-200"
+        >
+          Sign In
+        </button>
       </header>
       {/* Hero Section - Improved spacing and typography */}
       <div className="border-b border-slate-200">
@@ -40,13 +49,6 @@ const Welcome = () => {
                 className="px-10 py-4 bg-slate-900 text-white hover:bg-slate-800 font-medium text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 Sign Up
-              </button>
-              <button
-                data-testid="welcome-login-btn"
-                onClick={() => navigate('/login')}
-                className="px-10 py-4 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-lg transition-all duration-200"
-              >
-                Sign In
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ def _cache_get(cache, key, max_age):
 def _cache_set(cache, key, value):
     cache[key] = {'value': value, 'time': _time.time()}
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Request, Header
+from routes import uptime
 from fastapi.exceptions import RequestValidationError
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
@@ -3145,6 +3146,7 @@ async def health_check():
     return health_status
 
 app.include_router(api_router)
+app.include_router(uptime.router)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))

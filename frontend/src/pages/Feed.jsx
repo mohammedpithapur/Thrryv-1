@@ -17,6 +17,20 @@ const Feed = ({ user }) => {
   const [activeTab, setActiveTab] = useState('top');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Helper for retry logic
+  async function fetchWithRetry(fn, retries = 3, delay = 1000) {
+    let lastErr;
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
+    throw lastErr;
+  }
+
   // Only load claims when user loading is complete (user !== undefined)
   useEffect(() => {
     // If user is still undefined (loading), do not load claims yet
@@ -39,7 +53,7 @@ const Feed = ({ user }) => {
     const hasQuery = Boolean(searchQuery && searchQuery.trim().length > 0);
 
     if (!hasAuth) {
-      axios.get(`${API}/claims`, { timeout: 10000, params: { standard: true } })
+      fetchWithRetry(() => axios.get(`${API}/claims`, { timeout: 10000, params: { standard: true } }))
         .then(response => {
           setClaims(getApiList(response));
           setLoading(false);
@@ -54,7 +68,7 @@ const Feed = ({ user }) => {
 
     const headers = { Authorization: `Bearer ${token}` };
     if (hasQuery) {
-      axios.post(
+      fetchWithRetry(() => axios.post(
         `${API}/discover`,
         {
           query: searchQuery,
@@ -63,7 +77,7 @@ const Feed = ({ user }) => {
           limit: 20
         },
         { headers, timeout: 15000, params: { standard: true } }
-      )
+      ))
         .then(response => {
           const data = getApiData(response);
           setClaims(data?.claims || []);
@@ -77,11 +91,11 @@ const Feed = ({ user }) => {
       return;
     }
 
-    axios.post(
+    fetchWithRetry(() => axios.post(
       `${API}/discover/feed`,
       { limit: 20, diversity_preference: 0.35 },
       { headers, timeout: 15000, params: { standard: true } }
-    )
+    ))
       .then(response => {
         const data = getApiData(response);
         setClaims(data?.claims || []);
@@ -144,6 +158,7 @@ const Feed = ({ user }) => {
     return (
       <div className="text-center py-12">
         <p className="text-destructive">{error}</p>
+        <button onClick={loadClaims} className="px-6 py-2 bg-slate-900 text-white rounded shadow mt-4">Retry</button>
       </div>
     );
   }
