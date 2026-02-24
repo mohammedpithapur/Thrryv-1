@@ -189,12 +189,6 @@ const Welcome = () => {
             >
               Create Free Account
             </button>
-            <button
-              onClick={() => navigate('/feed')}
-              className="px-10 py-4 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-lg transition-all duration-200"
-            >
-              Explore Posts
-            </button>
           </div>
         </div>
       </div>
