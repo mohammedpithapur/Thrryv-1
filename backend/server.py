@@ -2495,12 +2495,15 @@ async def get_trending_topics(
     days: int = 7,
     standard: bool = False
 ):
-    trending = await build_trending_topics(days, limit)
-
-    if standard:
-        return standardize_list_response(trending, min(max(1, limit), 10), 0, len(trending))
-
-    return [item["topic"] for item in trending]
+    try:
+        trending = await build_trending_topics(days, limit)
+        if standard:
+            return standardize_list_response(trending, min(max(1, limit), 10), 0, len(trending))
+        return [item["topic"] for item in trending]
+    except Exception as e:
+        import logging
+        logging.error(f"Trending endpoint error: {e}", exc_info=True)
+        return {"success": False, "error": "server_error", "detail": str(e), "status_code": 500}
 
 # Client error logging
 @api_router.post("/logs/client")
