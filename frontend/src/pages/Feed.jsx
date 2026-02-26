@@ -42,7 +42,7 @@ const Feed = ({ user }) => {
     // If user is still undefined (loading), do not load claims yet
     if (typeof user === 'undefined') return;
     loadClaims();
-  }, [searchQuery, user]);
+  }, [searchQuery, user, loadClaims]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -64,7 +64,7 @@ const Feed = ({ user }) => {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab]);
+  }, [activeTab, tabList]);
 
   const loadClaims = () => {
     setLoading(true);

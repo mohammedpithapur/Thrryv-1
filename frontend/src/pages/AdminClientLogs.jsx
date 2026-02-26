@@ -58,7 +58,7 @@ const AdminClientLogs = () => {
     if (adminKey) {
       fetchLogs();
     }
-  }, []);
+  }, [adminKey, fetchLogs]);
 
   const handleSaveKey = () => {
     localStorage.setItem('adminKey', adminKey);

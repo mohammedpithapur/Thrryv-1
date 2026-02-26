@@ -126,14 +126,6 @@ const UserProfile = ({ currentUser, onLogout }) => {
 
   return (
     <div data-testid="user-profile-page" className="max-w-5xl mx-auto px-4 md:px-6 py-8">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
-      >
-        <ArrowLeft size={20} />
-        <span>Back</span>
-      </button>
 
       <div className="bg-card border border-border p-6 md:p-8 rounded-sm mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
@@ -279,18 +271,11 @@ const UserProfile = ({ currentUser, onLogout }) => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete post?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the post and reverse any impact gained.
+                This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-red-600 text-white hover:bg-red-700"
-                onClick={() => handleDeleteClaim(deletePostId)}
-                disabled={!deletePostId}
-              >
-                Delete
-              </AlertDialogAction>
+              <AlertDialogAction onClick={handleDeletePost}>Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -302,7 +287,7 @@ const UserProfile = ({ currentUser, onLogout }) => {
             data-testid="toggle-annotations-btn"
             className="w-full p-6 flex items-center justify-between hover:bg-secondary/50 transition-colors"
           >
-            <div className="flex items-center gap-3">
+            <div className="bg-card border border-border rounded-sm">
               <h2 className="playfair text-xl font-semibold">Annotations</h2>
               <span className="text-sm text-muted-foreground">({user.contribution_stats.annotations_added})</span>
             </div>

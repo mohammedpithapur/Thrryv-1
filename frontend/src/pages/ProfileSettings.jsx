@@ -253,14 +253,6 @@ const ProfileSettings = ({ user, onUserUpdate, onLogout }) => {
 
   return (
     <div data-testid="profile-settings-page" className="max-w-3xl mx-auto px-4 md:px-6 py-8 pb-24">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
-      >
-        <ArrowLeft size={20} />
-        <span>Back</span>
-      </button>
 
       <h1 className="playfair text-3xl md:text-4xl font-bold tracking-tight mb-8">Profile Settings</h1>
 
