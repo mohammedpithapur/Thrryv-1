@@ -15,6 +15,12 @@ const Feed = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('top');
+  const tabList = [
+    { key: 'top', label: 'Top' },
+    { key: 'impact', label: 'Impact' },
+    { key: 'recent', label: 'Recent' }
+  ];
+  const tabRefs = React.useRef([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Helper for retry logic
@@ -43,6 +49,22 @@ const Feed = ({ user }) => {
     const qParam = params.get('q');
     setSearchQuery(qParam || '');
   }, [location.search]);
+
+  // Keyboard navigation for tabs
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        const idx = tabList.findIndex(t => t.key === activeTab);
+        let nextIdx = idx;
+        if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabList.length) % tabList.length;
+        if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabList.length;
+        setActiveTab(tabList[nextIdx].key);
+        tabRefs.current[nextIdx]?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab]);
 
   const loadClaims = () => {
     setLoading(true);
@@ -164,48 +186,30 @@ const Feed = ({ user }) => {
   }
 
   return (
-    <div data-testid="feed-page" className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-8">
 
-      {/* Tabs */}
+    <div data-testid="feed-page" className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-8">
+      {/* Tabs - optimized for accessibility and clarity */}
       <div className="border-b border-border mb-8 overflow-x-auto">
-        <div className="flex gap-4 md:gap-8 min-w-max">
-          <button
-            data-testid="tab-top"
-            onClick={() => setActiveTab('top')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'top'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Top
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          <button
-            data-testid="tab-impact"
-            onClick={() => setActiveTab('impact')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'impact'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Impact
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          <button
-            data-testid="tab-recent"
-            onClick={() => setActiveTab('recent')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'recent'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Recent
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          {/* Removed claimed/unclaimed (debated/uncertain) filter buttons */}
+        <div className="flex gap-4 md:gap-8 min-w-max" role="tablist" aria-label="Feed Tabs">
+          {tabList.map((tab, idx) => (
+            <button
+              key={tab.key}
+              data-testid={`tab-${tab.key}`}
+              ref={el => tabRefs.current[idx] = el}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-4 px-4 font-semibold transition-colors border-b-4 whitespace-nowrap rounded-t focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                activeTab === tab.key
+                  ? 'border-primary text-primary bg-primary/5 shadow-sm scale-105'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+              }`}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              tabIndex={activeTab === tab.key ? 0 : -1}
+            >
+              {tab.label}
+              <span className="ml-2 text-xs">{claims.length}</span>
+            </button>
+          ))}
         </div>
       </div>
 
