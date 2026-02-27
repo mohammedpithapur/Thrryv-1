@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ClaimCard from '../components/ClaimCard';
 import { Loader2 } from 'lucide-react';
@@ -66,7 +66,7 @@ const Feed = ({ user }) => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, tabList]);
 
-  const loadClaims = () => {
+  const loadClaims = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -128,7 +128,7 @@ const Feed = ({ user }) => {
         setError(message);
         setLoading(false);
       });
-  };
+  }, [searchQuery, user]);
 
   const handleDeleteClaim = (claimId) => {
     setClaims(prev => prev.filter(c => c.id !== claimId));
