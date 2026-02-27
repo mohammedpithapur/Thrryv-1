@@ -726,7 +726,7 @@ async def build_search_suggestions(query: str, limit: int) -> List[Dict[str, Any
     return result
 
 async def build_trending_topics(days: int, limit: int) -> List[Dict[str, Any]]:
-    if not db:
+    if db is None:
         return []
 
     safe_days = max(1, min(days, 30))
