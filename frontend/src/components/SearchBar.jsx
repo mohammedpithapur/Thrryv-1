@@ -63,7 +63,7 @@ const SearchBar = ({ onSearch, placeholder = "Search posts...", value = undefine
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [compact, searchTerm]);
 
   // Fetch suggestions as user types
   useEffect(() => {

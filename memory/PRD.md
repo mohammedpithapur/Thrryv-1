@@ -1,4 +1,4 @@
-# Thrryv - Evidence-Based Truth Platform
+# Thrryv
 
 ## Original Problem Statement
 Build "Thrryv", a full-stack web app where users can post short, immutable claims (up to 250 words) with a domain and confidence level. Users can upload supporting media (text, images, short videos). The community adds annotations (supporting/contradicting evidence or context), which can also include media. 

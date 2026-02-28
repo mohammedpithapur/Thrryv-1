@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ClaimCard from '../components/ClaimCard';
 import { Loader2 } from 'lucide-react';
@@ -15,11 +15,34 @@ const Feed = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('top');
+  const tabList = [
+    { key: 'top', label: 'Top' },
+    { key: 'impact', label: 'Impact' },
+    { key: 'recent', label: 'Recent' }
+  ];
+  const tabRefs = React.useRef([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Helper for retry logic
+  async function fetchWithRetry(fn, retries = 6, delay = 2000) {
+    let lastErr;
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
+    throw lastErr;
+  }
+
+  // Only load claims when user loading is complete (user !== undefined)
   useEffect(() => {
+    // If user is still undefined (loading), do not load claims yet
+    if (typeof user === 'undefined') return;
     loadClaims();
-  }, [searchQuery, user]);
+  }, [searchQuery, user, loadClaims]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -27,7 +50,23 @@ const Feed = ({ user }) => {
     setSearchQuery(qParam || '');
   }, [location.search]);
 
-  const loadClaims = () => {
+  // Keyboard navigation for tabs
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        const idx = tabList.findIndex(t => t.key === activeTab);
+        let nextIdx = idx;
+        if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabList.length) % tabList.length;
+        if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabList.length;
+        setActiveTab(tabList[nextIdx].key);
+        tabRefs.current[nextIdx]?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, tabList]);
+
+  const loadClaims = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -36,7 +75,7 @@ const Feed = ({ user }) => {
     const hasQuery = Boolean(searchQuery && searchQuery.trim().length > 0);
 
     if (!hasAuth) {
-      axios.get(`${API}/claims`, { timeout: 10000, params: { standard: true } })
+      fetchWithRetry(() => axios.get(`${API}/claims`, { timeout: 10000, params: { standard: true } }))
         .then(response => {
           setClaims(getApiList(response));
           setLoading(false);
@@ -51,7 +90,7 @@ const Feed = ({ user }) => {
 
     const headers = { Authorization: `Bearer ${token}` };
     if (hasQuery) {
-      axios.post(
+      fetchWithRetry(() => axios.post(
         `${API}/discover`,
         {
           query: searchQuery,
@@ -60,7 +99,7 @@ const Feed = ({ user }) => {
           limit: 20
         },
         { headers, timeout: 15000, params: { standard: true } }
-      )
+      ))
         .then(response => {
           const data = getApiData(response);
           setClaims(data?.claims || []);
@@ -74,11 +113,11 @@ const Feed = ({ user }) => {
       return;
     }
 
-    axios.post(
+    fetchWithRetry(() => axios.post(
       `${API}/discover/feed`,
       { limit: 20, diversity_preference: 0.35 },
       { headers, timeout: 15000, params: { standard: true } }
-    )
+    ))
       .then(response => {
         const data = getApiData(response);
         setClaims(data?.claims || []);
@@ -89,7 +128,7 @@ const Feed = ({ user }) => {
         setError(message);
         setLoading(false);
       });
-  };
+  }, [searchQuery, user]);
 
   const handleDeleteClaim = (claimId) => {
     setClaims(prev => prev.filter(c => c.id !== claimId));
@@ -141,53 +180,36 @@ const Feed = ({ user }) => {
     return (
       <div className="text-center py-12">
         <p className="text-destructive">{error}</p>
+        <button onClick={loadClaims} className="px-6 py-2 bg-slate-900 text-white rounded shadow mt-4">Retry</button>
       </div>
     );
   }
 
   return (
-    <div data-testid="feed-page" className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-8">
 
-      {/* Tabs */}
+    <div data-testid="feed-page" className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-8">
+      {/* Tabs - optimized for accessibility and clarity */}
       <div className="border-b border-border mb-8 overflow-x-auto">
-        <div className="flex gap-4 md:gap-8 min-w-max">
-          <button
-            data-testid="tab-top"
-            onClick={() => setActiveTab('top')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'top'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Top
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          <button
-            data-testid="tab-impact"
-            onClick={() => setActiveTab('impact')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'impact'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Impact
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          <button
-            data-testid="tab-recent"
-            onClick={() => setActiveTab('recent')}
-            className={`pb-4 px-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === 'recent'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Recent
-            <span className="ml-2 text-xs">{claims.length}</span>
-          </button>
-          {/* Removed claimed/unclaimed (debated/uncertain) filter buttons */}
+        <div className="flex gap-4 md:gap-8 min-w-max" role="tablist" aria-label="Feed Tabs">
+          {tabList.map((tab, idx) => (
+            <button
+              key={tab.key}
+              data-testid={`tab-${tab.key}`}
+              ref={el => tabRefs.current[idx] = el}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-4 px-4 font-semibold transition-colors border-b-4 whitespace-nowrap rounded-t focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+                activeTab === tab.key
+                  ? 'border-primary text-primary bg-primary/5 shadow-sm scale-105'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+              }`}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              tabIndex={activeTab === tab.key ? 0 : -1}
+            >
+              {tab.label}
+              <span className="ml-2 text-xs">{claims.length}</span>
+            </button>
+          ))}
         </div>
       </div>
 

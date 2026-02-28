@@ -15,10 +15,19 @@ const Welcome = () => {
 
   return (
     <div data-testid="welcome-page" className="min-h-screen bg-white">
-      {/* Minimal Header */}
-      <header className="px-8 py-6 flex items-center gap-3">
-        <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
-        <span className="playfair text-xl font-semibold tracking-tight text-slate-900">Thrryv</span>
+      {/* Minimal Header with Sign In top right */}
+      <header className="px-8 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src="/thrryv-logo.jpeg" alt="Thrryv" className="h-8 w-8 object-contain" />
+          <span className="playfair text-xl font-semibold tracking-tight text-slate-900">Thrryv</span>
+        </div>
+        <button
+          data-testid="welcome-login-btn"
+          onClick={() => navigate('/login')}
+          className="px-6 py-2 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-base rounded transition-all duration-200"
+        >
+          Sign In
+        </button>
       </header>
       {/* Hero Section - Improved spacing and typography */}
       <div className="border-b border-slate-200">
@@ -33,27 +42,27 @@ const Welcome = () => {
             <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed">
               An AI-powered social platform that analyzes your posts, provides smart feedback, and helps you grow by consistently creating content your audience truly values.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-row gap-4 justify-center items-center mt-8">
               <button
-                data-testid="welcome-register-btn"
                 onClick={() => navigate('/register')}
                 className="px-10 py-4 bg-slate-900 text-white hover:bg-slate-800 font-medium text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+                data-testid="welcome-register-btn"
               >
                 Sign Up
               </button>
               <button
-                data-testid="welcome-login-btn"
-                onClick={() => navigate('/login')}
-                className="px-10 py-4 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-lg transition-all duration-200"
+                onClick={() => navigate('/feed')}
+                className="px-6 py-3 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 text-white hover:from-green-500 hover:to-purple-700 rounded-sm font-semibold text-lg transition-all shadow-lg flex items-center gap-2 animate-pulse"
+                data-testid="welcome-explore-btn"
               >
-                Sign In
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" /></svg>
+                Explore
               </button>
+            </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* How It Works - Improved layout and icons */}
+        {/* How It Works - Improved layout and icons */}
       <div className="py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="playfair text-4xl md:text-5xl font-bold text-center mb-6 text-slate-900">
@@ -186,12 +195,6 @@ const Welcome = () => {
               className="px-10 py-4 bg-slate-900 text-white hover:bg-slate-800 font-medium text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               Create Free Account
-            </button>
-            <button
-              onClick={() => navigate('/feed')}
-              className="px-10 py-4 bg-white text-slate-900 hover:bg-slate-50 border-2 border-slate-900 font-medium text-lg transition-all duration-200"
-            >
-              Explore Posts
             </button>
           </div>
         </div>
