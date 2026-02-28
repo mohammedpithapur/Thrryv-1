@@ -2479,13 +2479,18 @@ async def get_search_suggestions(
     limit: int = 5,
     standard: bool = False
 ):
-    safe_limit = max(1, min(limit, 10))
-    suggestions = await build_search_suggestions(q, safe_limit)
+    try:
+        safe_limit = max(1, min(limit, 10))
+        suggestions = await build_search_suggestions(q, safe_limit)
 
-    if standard:
-        return standardize_list_response(suggestions, safe_limit, 0, len(suggestions))
+        if standard:
+            return standardize_list_response(suggestions, safe_limit, 0, len(suggestions))
 
-    return suggestions
+        return suggestions
+    except Exception as e:
+        import logging
+        logging.error(f"Suggestions endpoint error: {e}", exc_info=True)
+        return {"success": False, "error": "server_error", "detail": str(e), "status_code": 500}
 
 @api_router.get("/search/trending")
 @limiter.limit("60/hour")
