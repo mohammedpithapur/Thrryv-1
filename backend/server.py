@@ -608,7 +608,7 @@ async def update_user_interests(
     query_weight: int = 3,
     claim_weight: int = 1
 ):
-    if not db:
+    if db is None:
         return
     now_iso = datetime.now(timezone.utc).isoformat()
     inc_ops: Dict[str, int] = {}
@@ -651,8 +651,12 @@ def build_interest_query(domains: List[str]) -> str:
     return f"Posts about {', '.join(domains)}"
 
 async def enrich_claim_for_discovery(claim: Dict[str, Any]) -> Dict[str, Any]:
-    author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
-    annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
+    if db is not None:
+        author = await db.users.find_one({"id": claim['author_id']}, {"_id": 0, "password": 0})
+        annotations = await db.annotations.find({"claim_id": claim['id']}, {"_id": 0}).to_list(length=1000)
+    else:
+        author = None
+        annotations = []
 
     post_score = calculate_post_score(annotations, claim.get('baseline_evaluation'), claim.get('author_id'))
     impact_score = min(100, max(0, (post_score / 15.0) * 100))
@@ -697,7 +701,7 @@ async def build_search_suggestions(query: str, limit: int) -> List[Dict[str, Any
         if normalized.lower() in domain.lower():
             add_suggestion("domain", domain)
 
-    if db:
+    if db is not None:
         regex = re.escape(normalized)
         match = {"$regex": regex, "$options": "i"}
         claims = await db.claims.find(
@@ -2538,7 +2542,7 @@ async def log_client_error(
         "ip": request.client.host if request.client else None
     }
 
-    if db:
+    if db is not None:
         await db.client_logs.insert_one(record)
     else:
         logger.warning(f"Client log (no db): {record}")
